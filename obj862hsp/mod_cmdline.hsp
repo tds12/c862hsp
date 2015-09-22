@@ -1,0 +1,98 @@
+	#ifndef _MOD_CMDLINE_AS_
+	#define _MOD_CMDLINE_AS_
+	#include "mod_inputman.hsp"
+	#module
+	#define global dir_dumf "dumf"
+	#deffunc execcmdline array objmaninst,array libmaninst
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		dimtype inputmaninst,vartype("struct")
+		dircmdline = dir_cmdline
+		cmdlinedata = strtrim(dircmdline,1)
+		exist cmdlinedata
+		if strsize == -1:return
+		chkdirdumf
+		sdim cmdline
+		outputfname = "out.hsp"
+		notesel cmdline
+		noteload cmdlinedata
+		repeat notemax
+			nextcnt = cnt + 1
+			mode = INPUTMODE_NONE
+			fname = ""
+			sdim cmdclass
+			noteget cmdclass,cnt
+			switch cmdclass
+				case "-out"
+					noteget outputfname,cnt + 1
+					nextcnt = cnt + 2
+				swbreak
+				case "-o"
+					mode = INPUTMODE_OBJ
+					noteget fname,cnt + 1
+					nextcnt = cnt + 2
+				swbreak
+				case "-l"
+					mode = INPUTMODE_LIB
+					noteget fname,cnt + 1
+					nextcnt = cnt + 2
+				swbreak
+			swend
+			if mode != INPUTMODE_NONE{
+				sdim dumfdata
+				bsave getdumfpath(fname),dumfdata,0
+			}
+			newmod inputmaninst,MOD_INPUTMAN,fname,mode
+			continue nextcnt
+		loop
+		foreach inputmaninst
+			inputman_input inputmaninst(cnt),objmaninst,libmaninst
+			delmod inputmaninst(cnt)
+		loop
+		noteunsel
+		clrdumfs
+	return
+	#defcfunc getoutputfname
+	return outputfname
+	#global
+	#module
+	#deffunc chkdirdumf
+		sdim a
+		dirlist a,dir_dumf,5
+		if a == ""{
+			mkdir dir_dumf
+		}
+	return
+	#defcfunc getdumfpath str _in
+		in = _in
+		out = dir_dumf + "\\" + getpath(in,8)
+	return out
+	#deffunc clrdumfs
+		sdim flist
+		dirlist flist,dir_dumf + "\\*.*",1
+		if flist != ""{
+			notesel flist
+			repeat notemax
+				noteget curfname,cnt
+				if curfname != ""{
+					delete dir_dumf + "\\" + curfname
+				}
+			loop
+			noteunsel
+		}
+	return
+	#global
+	#module
+	#uselib "kernel32.dll"
+	#func GetShortPathName "GetShortPathNameA" sptr,int,int
+	#defcfunc getinputshortname str _in
+		sdim out
+		in = _in
+		dumfname = getdumfpath(in)
+		sdim shortpath,260
+		GetShortPathName dumfname,varptr(shortpath),260
+		out = getpath(shortpath,9)
+	return out
+	#global
+	#endif

@@ -1,0 +1,35 @@
+	#ifndef _MOD_GETSYMPTRWRITER_AS_
+	#define _MOD_GETSYMPTRWRITER_AS_
+	#include "mod_objman.hsp"
+	#include "mod_libman.hsp"
+	#module MOD_GETSYMPTRWRITER
+	#defcfunc writegetsymptrfunc str _convid,array objmaninst,array libmaninst
+		sdim result
+		notesel result
+		noteadd "\t#ifndef _MOD_" + _convid + "gsp_AS_"
+		noteadd "\t#define _MOD_" + _convid + "gsp_AS_"
+		noteadd "\t#module"
+		noteadd "\t#defcfunc getsymptr_" + _convid + " str _symbolname"
+		noteadd "\t\tsymbolname = _symbolname"
+		noteadd "\t\tptr = 0"
+		noteadd "\t\trepeat 1"
+		foreach objmaninst
+			noteadd "\t\t\tptr = getsymbolptr" + objman_getobjid(objmaninst(cnt)) + "(symbolname)"
+			noteadd "\t\t\tif ptr != 0:break"
+		loop
+		foreach libmaninst
+			sdim libobjids
+			libman_getobjids libmaninst(cnt),libobjids
+			foreach libobjids
+				noteadd "\t\t\tptr = getsymbolptr" + libobjids(cnt) + "(symbolname)"
+				noteadd "\t\t\tif ptr != 0:break"
+			loop
+		loop
+		noteadd "\t\tloop"
+		noteadd "\treturn ptr"
+		noteadd "\t#global"
+		noteadd "\t#endif"
+		noteunsel
+	return result
+	#global
+	#endif

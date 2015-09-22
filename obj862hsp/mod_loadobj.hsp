@@ -1,0 +1,31 @@
+	#ifndef _MOD_LOADOBJ_AS_
+	#define _MOD_LOADOBJ_AS_
+	#include "mod_objman.hsp"
+	#include "mod_cmdline.hsp"
+	#module
+	#deffunc loadobj array objmaninst,str _objfname
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		objfname = _objfname
+		exist objfname
+		objfsize = strsize
+		if objfsize == -1:print "Error:objファイルを開けません":gosub *failend
+		sdim objdata,objfsize
+		bload objfname,objdata,objfsize,0
+		outmodid = getinputshortname(objfname)
+		strrep outmodid,"~","td"
+		outmodid = "_" + outmodid + "_"
+		newmod objmaninst,MOD_OBJMAN,outmodid,objfsize,objdata
+		instid = stat
+		if objman_getobjmanstat(objmaninst(instid)) != 0{
+			print objman_getobjmanstat(objmaninst(instid))
+			delmod objmaninst(instid)
+			gosub *failend
+		}
+	return
+*failend
+		print "Error:失敗しました(loadobj)":end
+	return
+	#global
+	#endif

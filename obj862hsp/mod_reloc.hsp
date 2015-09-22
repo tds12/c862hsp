@@ -1,0 +1,71 @@
+	#ifndef _MOD_RELOC_AS_
+	#define _MOD_RELOC_AS_
+	#include "mod_relocutil.hsp"
+	#include "mod_srelocman.hsp"
+	#include "mod_brelocman.hsp"
+	#module
+	
+	#deffunc addrelocation array brelocmaninst,str _symbol,var _objmaninst,var relocation,int _cursectionnumber,int _index
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		ffind = -1
+		if vartype(brelocmaninst) == vartype("int"){
+			//
+		}else{
+			foreach brelocmaninst
+				if brelocman__getsymbol(brelocmaninst(cnt)) == _symbol{
+					if brelocman__objinsteq(brelocmaninst(cnt),_objmaninst){
+						ffind = cnt
+						break
+					}
+				}
+			loop
+		}
+		if ffind == -1{
+			newmod brelocmaninst,MOD_BRELOCMAN,_symbol,_objmaninst,relocation,_cursectionnumber,_index
+		}else{
+			brelocman__newsrelocman brelocmaninst(ffind),relocation,_cursectionnumber,_index
+		}
+	return
+	#deffunc cnvtohspmanurelocfunc array brelocmaninst,var objmaninst
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		sdim gresult
+		notesel gresult
+		objid = objman_getobjid(objmaninst)
+		noteadd strf("\t#deffunc relocate_manu_%s str _relocmcmd,int _relocmapp",objid)
+		noteadd "\t\trelocmcmd = _relocmcmd"
+		noteadd "\t\tswitch relocmcmd"
+		if vartype(brelocmaninst) == vartype("struct"){
+			foreach brelocmaninst
+				noteadd brelocman__cnvtohspmanurelocscript(brelocmaninst(cnt))
+			loop
+		}
+		noteadd "\t\tswend"
+		noteadd "\treturn"
+		noteunsel
+	return gresult
+	#deffunc cnvtohsprewritefunc array brelocmaninst,var objmaninst
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		sdim gresult
+		notesel gresult
+		objid = objman_getobjid(objmaninst)
+		noteadd strf("\t#deffunc rewrite_%s str _relocmcmd,int _relocmapp",objid)
+		noteadd "\t\trelocmcmd = _relocmcmd"
+		noteadd "\t\tswitch relocmcmd"
+		if vartype(brelocmaninst) == vartype("struct"){
+			foreach brelocmaninst
+				noteadd brelocman__cnvtohspmanurelocscript(brelocmaninst(cnt))
+			loop
+		}
+		noteadd "\t\tswend"
+		noteadd "\treturn"
+		noteunsel
+	return gresult
+	
+	#global
+	#endif

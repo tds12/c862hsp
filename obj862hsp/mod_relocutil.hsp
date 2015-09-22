@@ -1,0 +1,20 @@
+	#ifndef _MOD_RELOCUTIL_AS_
+	#define _MOD_RELOCUTIL_AS_
+	#module
+	#deffunc getrelocation var _relocation,var _relocations,int _index
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		memexpand _relocation,10
+		memcpy _relocation,_relocations,10,0,_index * 10
+	return
+	#deffunc getrelocationdata var _relocation,var _virtualaddress,var _symboltableindex,var _type
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		_virtualaddress = lpeek(_relocation,0)
+		_symboltableindex = lpeek(_relocation,4)
+		_type = wpeek(_relocation,8)
+	return
+	#global
+	#endif

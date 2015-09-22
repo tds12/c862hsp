@@ -1,0 +1,28 @@
+	#ifndef _MOD_IMPLIBMAN_AS_
+	#define _MOD_IMPLIBMAN_AS_
+	#include "inputimplibfile2.hsp"
+	#module MOD_IMPLIBMAN impid,implibmanstat,objfsize,objdata,objimpname,objdllname,objprocname
+	#modinit str _impid,int _objfsize,var _objdata
+		impid = _impid
+		objfsize = _objfsize
+		sdim objdata,objfsize + 1
+		memcpy objdata,_objdata,objfsize,0,0
+		objsymbolname = _objsymbolname
+		inputshortimplib2 objfsize,objdata,objimpname,objdllname,objprocname
+		implibmanstat = stat
+		mref _ownid,2
+		ownid = _ownid
+		dim _ownid
+	return ownid
+	#modcfunc implibman_getimpid
+	return impid
+	#modcfunc implibman_getimplibmanstat
+	return implibmanstat
+	#modcfunc implibman_getobjimpname
+	return objimpname
+	#modcfunc implibman_getobjdllname
+	return objdllname
+	#modcfunc implibman_getobjprocname
+	return objprocname
+	#global
+	#endif

@@ -1,0 +1,83 @@
+	#ifndef _MOD_OBJMAN_AS_
+	#define _MOD_OBJMAN_AS_
+	#include "inputobjfile3.hsp"
+	#module MOD_OBJMAN objid,objfsize,objdata,objfhead,machine,NumOfSections,TimeDateStamp,PtrToSymbolTable,NumOfSymbols,SzOfOptionalHeader,Characteristics,objsectionhead,SectionName,Relocation,ovflrolocationinfo,RawData,SzOfRawData,PtrToRawData,PtrToRelocations,NumOfRelocations,sectionheadCharacteristics,objsection,objsymboltable,objsymbolname,objsymbolzeroes,objsymboloffset,objsymbolvalue,objsymbolsectionnumber,objsymboltype,objsymbolstorageclass,objsymbolnumberofauxsymbols,auxsymbolsection,auxsymbolsectionlength,auxsymbolsectionnumberofrelocations,auxsymbolsectionnumberoflinenumbers,auxsymbolsectionchecksum,auxsymbolsectionnumber,auxsymbolsectionselection,PtrToLongSymbolTableHead,auxsymbolweaktagindex,auxsymbolweakcharacteristics,objmanstat
+	#uselib "msvcrt.dll"
+	#cfunc memcmp "memcmp" var,var,int
+	#modinit str _objid,int _objfsize,var _objdata
+		objid = _objid
+		objfsize = _objfsize
+		objmanstat = 0
+		sdim objdata,objfsize + 1
+		memcpy objdata,_objdata,objfsize,0,0
+		inputobjfile objfsize,objdata,objfhead,machine,NumOfSections,TimeDateStamp,PtrToSymbolTable,NumOfSymbols,SzOfOptionalHeader,Characteristics,objsectionhead,SectionName,Relocation,ovflrolocationinfo,RawData,SzOfRawData,PtrToRawData,PtrToRelocations,NumOfRelocations,sectionheadCharacteristics,objsection,objsymboltable,objsymbolname,objsymbolzeroes,objsymboloffset,objsymbolvalue,objsymbolsectionnumber,objsymboltype,objsymbolstorageclass,objsymbolnumberofauxsymbols,auxsymbolsection,auxsymbolsectionlength,auxsymbolsectionnumberofrelocations,auxsymbolsectionnumberoflinenumbers,auxsymbolsectionchecksum,auxsymbolsectionnumber,auxsymbolsectionselection,PtrToLongSymbolTableHead,auxsymbolweaktagindex,auxsymbolweakcharacteristics
+		_stat = stat
+		if _stat != 0:objmanstat = _stat
+		mref _ownid,2
+		ownid = _ownid
+		dim _ownid
+	return ownid
+	#modcfunc objman_getobjmanstat
+	return objmanstat
+	#modcfunc objman_getobjid
+	return objid
+	#modcfunc objman_getmachine
+	return machine
+	#modcfunc objman_getnumofsections
+	return NumOfSections
+	#modcfunc objman_getszofrawdata int _index
+	return SzOfRawData(_index - 1)
+	#modfunc objman_getrawdata var outdata,int _index
+		memexpand outdata,SzOfRawData(_index - 1) + 1
+		memcpy outdata,RawData(_index - 1),SzOfRawData(_index - 1),0,0//
+	return
+	#modcfunc objman_getsectionname int _index
+	return sectionname(_index - 1)
+	#modcfunc objman_getnumofsymbols
+	return NumOfSymbols
+	#modcfunc objman_getobjsymbolname int _index
+	return objsymbolname(_index)
+	#modcfunc objman_getobjsymbolzeroes int _index
+	return objsymbolzeroes(_index)
+	#modcfunc objman_getobjsymboloffset int _index
+	return objsymboloffset(_index)
+	#modcfunc objman_getobjsymbolvalue int _index
+	return objsymbolvalue(_index)
+	#modcfunc objman_getobjsymbolsectionnumber int _index
+	return objsymbolsectionnumber(_index)
+	#modcfunc objman_getobjsymboltype int _index
+	return objsymboltype(_index)
+	#modcfunc objman_getobjsymbolstorageclass int _index
+	return objsymbolstorageclass(_index)
+	#modcfunc objman_getobjsymbolnumberofauxsymbols int _index
+	return objsymbolnumberofauxsymbols(_index)
+	#modcfunc objman_getnumofrelocations int _index
+	return NumOfRelocations(_index - 1)//
+	#modfunc objman_getrelocation var _relocation,int _index
+		memexpand _relocation,10 * NumOfRelocations(_index - 1)
+		memcpy _relocation,Relocation(_index - 1),10 * NumOfRelocations(_index - 1),0,0
+	return
+	#modcfunc objman_getsectionheadcharacteristics int _index
+	return sectionheadcharacteristics(_index - 1)
+	#modcfunc objman_getobjfsize
+	return objfsize
+	#modcfunc objman_getauxsymbolweaktagindex int _index
+	return auxsymbolweaktagindex(_index)
+	#modcfunc objman_getauxsymbolweakcharacteristics int _index
+	return auxsymbolweakcharacteristics(_index)
+	#modfunc objman_getobjdata var _outdata
+		sdim _outdata
+		memexpand _outdata,objfsize
+		memcpy _outdata,objdata,objfsize,0,0
+	return
+	#modcfunc objman_cmp var _target
+		if objfsize == objman_getobjfsize(_target){
+			sdim targetdata
+			objman_getobjdata _target,targetdata
+			return (memcmp(objdata,targetdata,objfsize) == 0)
+		}else{
+			return 0
+		}
+	return 0
+	#global
+	#endif

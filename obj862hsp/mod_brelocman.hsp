@@ -1,0 +1,33 @@
+	#ifndef _MOD_BRELOCMAN_AS_
+	#define _MOD_BRELOCMAN_AS_
+	#include "mod_srelocman.hsp"
+	#module MOD_BRELOCMAN symbol,objinst,srelocmaninst
+	#modinit str _symbol,var _objinst,var relocation,int _cursectionnumber,int _index
+		symbol = _symbol
+		objinst = _objinst
+		newmod srelocmaninst,MOD_SRELOCMAN,relocation,_cursectionnumber,_index
+		
+	return
+	#modcfunc brelocman__getsymbol
+	return symbol
+	#modcfunc brelocman__objinsteq var _target
+	return objman_cmp(objinst,_target)
+	#modfunc brelocman__newsrelocman var relocation,int _cursectionnumber,int _index
+		newmod srelocmaninst,MOD_SRELOCMAN,relocation,_cursectionnumber,_index
+	return
+	#modcfunc brelocman__cnvtohspmanurelocscript
+		sdim result
+		notesel result
+		noteadd strf("\t\t\tcase \"%s\"",symbol)
+		if vartype(srelocmaninst) == vartype("struct"){
+			foreach srelocmaninst
+				tmpstr1 = srelocman__cnvtohsprelocstat(srelocmaninst(cnt))
+				if tmpstr1 != "":noteadd tmpstr1//
+			loop
+		}
+		noteadd "\t\t\tswbreak"
+		noteunsel
+	return result
+		
+	#global
+	#endif

@@ -1,0 +1,145 @@
+	#ifndef _MOD_INPUTOBJFILE_AS_
+	#define _MOD_INPUTOBJFILE_AS_
+	#module
+	#const IMAGE_SCN_LNK_NRELOC_OVFL	0x01000000
+	#uselib "msvcrt.dll"
+	#cfunc cstrlen "strlen" sptr
+	#deffunc inputobjfile int objfsize,var objdata,var objfhead,var machine,var NumOfSections,var TimeDateStamp,var PtrToSymbolTable,var NumOfSymbols,var SzOfOptionalHeader,var Characteristics,array objsectionhead,array SectionName,array Relocation,array ovflrolocationinfo,array RawData,array SzOfRawData,array PtrToRawData,array PtrToRelocations,array NumOfRelocations,array sectionheadCharacteristics,array objsection,array objsymboltable,array objsymbolname,array objsymbolzeroes,array objsymboloffset,array objsymbolvalue,array objsymbolsectionnumber,array objsymboltype,array objsymbolstorageclass,array objsymbolnumberofauxsymbols,array auxsymbolsection,array auxsymbolsectionlength,array auxsymbolsectionnumberofrelocations,array auxsymbolsectionnumberoflinenumbers,array auxsymbolsectionchecksum,array auxsymbolsectionnumber,array auxsymbolsectionselection,array PtrToLongSymbolTableHead,array auxsymbolweaktagindex,array auxsymbolweakcharacteristics
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		memexpand objdata,objfsize + 1
+		if objfsize < 20:return -1
+		sdim objfhead,20
+		memcpy objfhead,objdata,20,0,0
+		Machine = wpeek(objfhead,0)
+		NumOfSections = wpeek(objfhead,2)
+		TimeDateStamp = lpeek(objfhead,4)
+		PtrToSymbolTable = lpeek(objfhead,8)
+		NumOfSymbols = lpeek(objfhead,12)
+		SzOfOptionalHeader = wpeek(objfhead,16)
+		Characteristics = wpeek(objfhead,18)
+		if ((objfsize >= 20 + 40 * NumOfSections)|((NumOfSections == $ffff)&(Machine == 0))) == 0:return -2
+		if (NumOfSections == $ffff)&(Machine == 0):return 1
+		sdim objsectionhead,40,NumOfSections
+		sdim SectionName,8,NumOfSections
+		sdim Relocation,10,NumOfSections
+		sdim ovflrolocationinfo,10,NumOfSections
+		sdim RawData,64,NumOfSections
+		dim SzOfRawData,NumOfSections
+		dim PtrToRawData,NumOfSections
+		dim PtrToRelocations,NumOfSections
+		dim NumOfRelocations,NumOfSections
+		dim sectionheadCharacteristics,NumOfSections
+		errbrf = 0
+		repeat NumOfSections
+			memcpy objsectionhead(cnt),objdata,40,0,20 + SzOfOptionalHeader + 40 * cnt
+			memcpy SectionName(cnt),objsectionhead(cnt),8,0,0
+			SzOfRawData(cnt) = lpeek(objsectionhead(cnt),16)
+			PtrToRawData(cnt) = lpeek(objsectionhead(cnt),20)
+			PtrToRelocations(cnt) = lpeek(objsectionhead(cnt),24)
+			NumOfRelocations(cnt) = wpeek(objsectionhead(cnt),32)
+			sectionheadCharacteristics(cnt) = lpeek(objsectionhead(cnt),36)
+			if objfsize >= PtrToRawData(cnt) + SzOfRawData(cnt){
+				memexpand RawData(cnt),SzOfRawData(cnt)
+				memcpy RawData(cnt),objdata,SzOfRawData(cnt),0,PtrToRawData(cnt)
+			}else{
+				errbrf = -3
+				break
+			}
+			if (sectionheadCharacteristics(cnt) & IMAGE_SCN_LNK_NRELOC_OVFL) == 0{
+				if objfsize >= PtrToRelocations(cnt) + NumOfRelocations(cnt) * 10{
+					memexpand Relocation(cnt),NumOfRelocations(cnt) * 10
+					memcpy Relocation(cnt),objdata,NumOfRelocations(cnt) * 10,0,PtrToRelocations(cnt)
+				}else{
+					errbrf = -4
+					break
+				}
+			}else{
+				if objfsize >= PtrToRelocations(cnt) + 10{
+					memcpy ovflrelocationinfo(cnt),objdata,10,0,PtrToRelocations(cnt)
+					NumOfRelocations(cnt) = lpeek(ovflrelocationinfo(cnt),0)
+					PtrToRelocations(cnt) = PtrToRelocations(cnt) + 10
+					if objfsize >= PtrToRelocations(cnt) + NumOfRelocations(cnt) * 10{
+						memexpand Relocation(cnt),NumOfRelocations(cnt) * 10
+						memcpy Relocation(cnt),objdata,NumOfRelocations(cnt) * 10,0,PtrToRelocations(cnt)
+					}else{
+						errbrf = -5
+						break
+					}
+				}else{
+					errbrf = -6
+					break
+				}
+			}
+		loop
+		if errbrf:return errbrf
+		sdim objsection,64,NumOfSections
+		sdim objsymboltable,18,NumOfSymbols
+		sdim objsymbolname,9,NumOfSymbols
+		dim objsymbolzeroes,NumOfSymbols
+		dim objsymboloffset,NumOfSymbols
+		dim objsymbolvalue,NumOfSymbols
+		dim objsymbolsectionnumber,NumOfSymbols
+		dim objsymboltype,NumOfSymbols
+		dim objsymbolstorageclass,NumOfSymbols
+		dim objsymbolnumberofauxsymbols,NumOfSymbols
+		sdim auxsymbolsection,18,NumOfSymbols
+		dim auxsymbolsectionlength,NumOfSymbols
+		dim auxsymbolsectionnumberofrelocations,NumOfSymbols
+		dim auxsymbolsectionnumberoflinenumbers,NumOfSymbols
+		dim auxsymbolsectionchecksum,NumOfSymbols
+		dim auxsymbolsectionnumber,NumOfSymbols
+		dim auxsymbolsectionselection,NumOfSymbols
+		dim auxsymbolweaktagindex,NumOfSymbols
+		dim auxsymbolweakcharacteristics,NumOfSymbols
+		PtrToLongSymbolTableHead = PtrToSymbolTable + NumOfSymbols * 18
+		if objfsize < PtrToLongSymbolTableHead:return -7
+		if objfsize < PtrToSymbolTable + NumOfSymbols * 18:return -8
+		errbrf = 0
+		repeat NumOfSymbols
+			memcpy objsymboltable(cnt),objdata,18,0,PtrToSymbolTable + cnt * 18
+			memcpy objsymbolname(cnt),objsymboltable(cnt),8,0,0
+			objsymbolzeroes(cnt) = lpeek(objsymboltable(cnt),0)
+			objsymboloffset(cnt) = lpeek(objsymboltable(cnt),4)
+			objsymbolvalue(cnt) = lpeek(objsymboltable(cnt),8)
+			objsymbolsectionnumber(cnt) = wpeek(objsymboltable(cnt),12)
+			objsymboltype(cnt) = wpeek(objsymboltable(cnt),14)
+			objsymbolstorageclass(cnt) = peek(objsymboltable(cnt),16)
+			objsymbolnumberofauxsymbols(cnt) = peek(objsymboltable(cnt),17)
+			if objsymbolzeroes(cnt) == 0{
+				longsymbollen = cstrlen(varptr(objdata) + objsymboloffset(cnt) + PtrToLongSymbolTableHead)
+				memexpand objsymbolname(cnt),longsymbollen + 1
+				memcpy objsymbolname(cnt),objdata,longsymbollen,0,objsymboloffset(cnt) + PtrToLongSymbolTableHead
+			}
+			tmprootcnt = cnt
+			repeat objsymbolnumberofauxsymbols(cnt)
+				memcpy auxsymbolsection(tmprootcnt + cnt + 1),objdata,18,0,PtrToSymbolTable + (tmprootcnt + cnt + 1) * 18
+				switch objsymbolstorageclass(tmprootcnt)
+					case 2//storageclass = EXTERNAL
+						if cnt == 0{
+							if objsymbolsectionnumber(tmprootcnt + cnt + 1) == 0{
+								if objsymbolvalue(tmprootcnt + cnt + 1) == 0{
+									auxsymbolweaktagindex(tmprootcnt) = lpeek(auxsymbolsection(tmprootcnt + cnt + 1),0)
+									auxsymbolweakcharacteristics(tmprootcnt) = lpeek(auxsymbolsection(tmprootcnt + cnt + 1),4)
+								}
+							}
+						}
+					swbreak
+					case 3//storageclass = STATIC
+						if cnt == 0{
+							auxsymbolsectionlength(tmprootcnt + cnt + 1) = lpeek(auxsymbolsection(tmprootcnt + cnt + 1),0)
+							auxsymbolsectionnumberofrelocations(tmprootcnt + cnt + 1) = wpeek(auxsymbolsection(tmprootcnt + cnt + 1),4)
+							auxsymbolsectionnumberoflinenumbers(tmprootcnt + cnt + 1) = wpeek(auxsymbolsection(tmprootcnt + cnt + 1),6)
+							auxsymbolsectionnumberofchecksum(tmprootcnt + cnt + 1) = lpeek(auxsymbolsection(tmprootcnt + cnt + 1),8)
+							auxsymbolsectionnumberofnumber(tmprootcnt + cnt + 1) = wpeek(auxsymbolsection(tmprootcnt + cnt + 1),12)
+							auxsymbolsectionnumberofselection(tmprootcnt + cnt + 1) = peek(auxsymbolsection(tmprootcnt + cnt + 1),14)
+						}
+					swbreak
+				swend
+			loop
+			continue cnt + objsymbolnumberofauxsymbols(cnt) + 1//
+		loop
+	return 0
+	#global
+	#endif

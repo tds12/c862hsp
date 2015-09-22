@@ -1,0 +1,216 @@
+	#ifndef _MOD_BCNV_AS_
+	#define _MOD_BCNV_AS_
+	#include "mod_objman.hsp"
+	#include "mod_libman.hsp"
+	#include "mod_reloc.hsp"
+	#include "mod_getsymboldefine.hsp"
+	#include "mod_scnv.hsp"
+	#include "mod_impman.hsp"
+	#module
+	#define objid2modname(%1) ("m" + %1)
+	#uselib "dbghelp.dll"
+	#func UnDecorateSymbolName "UnDecorateSymbolName" sptr,int,int,int
+	#define IMAGE_FILE_MACHINE_I386 0x014c
+	#define IMAGE_REL_I386_DIR32 0x0006
+	#define IMAGE_REL_I386_REL32 0x0014
+	#define IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY  1
+	#define IMAGE_WEAK_EXTERN_SEARCH_LIBRARY    2
+	#define IMAGE_WEAK_EXTERN_SEARCH_ALIAS      3
+	#deffunc convtohspobjmodule var oresult,array objmaninst,array id,array libmaninst,array dllmaninst,str convid
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		if (objman_getmachine(objmaninst(id(0))) != IMAGE_FILE_MACHINE_I386) & (objman_getmachine(objmaninst(id(0))) != 0){
+			gosub *failend
+		}
+		sdim result
+		notesel result
+		outmodid = objman_getobjid(objmaninst(id(0)))
+		outmodlabel = "_MOD_" + outmodid + "_AS_"
+		noteadd "\t#ifndef " + outmodlabel
+		noteadd "\t#define " + outmodlabel
+		outmodname = objid2modname(outmodid)
+		noteadd "\t#module " + outmodname
+		noteadd "\t#uselib \"kernel32.dll\""
+		noteadd "\t#func VirtualProtect \"VirtualProtect\" int,int,int,int"
+		numofsections = objman_getnumofsections(objmaninst(id(0)))
+		dim brelocmaninst
+		dim brewrimaninst
+		sdim resloc
+		noteadd strf("\t#deffunc locate%s",outmodid)
+		noteunsel
+		sdim resrel
+		notesel resrel
+		noteadd strf("\t#deffunc relocate%s",outmodid)
+		noteunsel
+		repeat numofsections,1
+			cursectionnumber = cnt
+			cursectionname = objman_getsectionname(objmaninst(id(0)),cursectionnumber)
+			if (cursectionname == ".drectve" || cursectionname == ".debug$F" || cursectionname == ".debug$S" || cursectionname == ".debug$T"):continue
+			notesel resloc
+			noteadd "\t\t//section name : \"" + cursectionname + "\""
+			szofrawdata = objman_getszofrawdata(objmaninst(id(0)),cursectionnumber)
+			noteadd "\t\t//section size : " + szofrawdata + " bytes"
+			noteadd "\t\t//number of relocations : " + objman_getnumofrelocations(objmaninst(id(0)),cursectionnumber)
+			sdim rawdata
+			objman_getrawdata objmaninst(id(0)),rawdata,cursectionnumber
+			noteunsel
+			tmpstr1 = cnvrawdatatohsparrayscript(cursectionnumber,szofrawdata,rawdata,objman_getsectionheadcharacteristics(objmaninst(id(0)),cursectionnumber))
+			notesel resloc
+			noteadd tmpstr1
+			noteunsel
+			sdim relocations,10
+			objman_getrelocation objmaninst(id(0)),relocations,cursectionnumber
+			numofrelocations = objman_getnumofrelocations(objmaninst(id(0)),cursectionnumber)
+			sdim manualrelocating
+			repeat numofrelocations
+				notesel resrel
+				sdim relocation
+				dim relocationvirtualaddress
+				dim relocationsymboltableindex
+				dim relocationtype
+				weakchance = 0
+				getrelocation relocation,relocations,cnt
+				getrelocationdata relocation,relocationvirtualaddress,relocationsymboltableindex,relocationtype
+*lb_getsymsecnum
+				currelocationsymbolsectionnumber = objman_getobjsymbolsectionnumber(objmaninst(id(0)),relocationsymboltableindex)
+				if currelocationsymbolsectionnumber > 0{
+					currelocationsymbolvalue = objman_getobjsymbolvalue(objmaninst(id(0)),relocationsymboltableindex)
+						if relocationtype == IMAGE_REL_I386_DIR32{
+;							noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d) + %d",cursectionnumber,relocationvirtualaddress,cursectionnumber,currelocationsymbolvalue)//
+							noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d) + %d",cursectionnumber,relocationvirtualaddress,currelocationsymbolsectionnumber,currelocationsymbolvalue)//
+						}
+					if relocationtype == IMAGE_REL_I386_REL32{
+;						noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d) + %d - varptr(rawdata%d) - %d",cursectionnumber,relocationvirtualaddress,cursectionnumber,currelocationsymbolvalue,cursectionnumber,relocationvirtualaddress)//
+						noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d) + %d - varptr(rawdata%d) - %d",cursectionnumber,relocationvirtualaddress,currelocationsymbolsectionnumber,currelocationsymbolvalue,cursectionnumber,relocationvirtualaddress)//
+					}
+				}else{
+					if currelcationsymbolsectionnumber == 0{
+						if (objman_getobjsymbolstorageclass(objmaninst(id(0)),relocationsymboltableindex) == 2) & (currelocationsectionnumber == 0) & (objman_getobjsymbolvalue(objmaninst(id(0)),relocationsymboltableindex) == 0) & (objman_getobjsymbolnumberofauxsymbols(objmaninst(id(0)),relocationsymboltableindex) >= 1){
+							auxsymbolweakcharacteristics = objman_getauxsymbolweakcharacteristics(objmaninst(id(0)),relocationsymboltableindex)
+							if (auxsymbolweakcharacteristics == IMAGE_WEAK_EXTERN_SEARCH_LIBRARY) | (auxsymbolweakcharacteristics == IMAGE_WEAK_EXTERN_SEARCH_ALIAS){
+								weakchance = 1
+							}else{
+								if auxsymbolweakcharacteristics == IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY{
+									relocationsymboltableindex = objman_getauxsymbolweaktagindex(objmaninst(id(0)),relocationsymboltableindex)
+									goto *lb_getsymsecnum
+								}else{
+									print "warning:未知の弱い外部参照"
+								}
+							}
+						}
+						targetsymbol = objman_getobjsymbolname(objmaninst(id(0)),relocationsymboltableindex)
+						findobj = -1
+						findsymbol = -1
+						getsymboldefine objmaninst,targetsymbol,findobj,findsymbol
+						if (findobj > -1) & (findsymbol > -1){
+							sourcemodname = objid2modname(objman_getobjid(objmaninst(findobj)))
+							currelocationsymbolvalue = objman_getobjsymbolvalue(objmaninst(findobj),findsymbol)
+							currelocationsymbolsectionnumber2 = objman_getobjsymbolsectionnumber(objmaninst(findobj),findsymbol)//
+							if relocationtype == IMAGE_REL_I386_DIR32{
+								noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d@%s) + %d",cursectionnumber,relocationvirtualaddress,currelocationsymbolsectionnumber2,sourcemodname,currelocationsymbolvalue)//
+							}
+							if relocationtype == IMAGE_REL_I386_REL32{
+								noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d@%s) + %d - varptr(rawdata%d) - %d",cursectionnumber,relocationvirtualaddress,currelocationsymbolsectionnumber2,sourcemodname,currelocationsymbolvalue,cursectionnumber,relocationvirtualaddress)//
+							}
+						}else{
+							getsymboldefinelibglobalall libmaninst,targetsymbol,findlib,findobj,findsymbol//
+							if findlib > -1{
+								sourcemodname = objid2modname(libman_getobjid(libmaninst(findlib),findobj))
+								currelocationsymbolvalue = libman_getobjsymbolvalue(libmaninst(findlib),findobj,findsymbol)
+								currelocationsymbolsectionnumber2 = libman_getobjsymbolsectionnumber(libmaninst(findlib),findobj,findsymbol)//
+								if relocationtype == IMAGE_REL_I386_DIR32{
+									noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d@%s) + %d",cursectionnumber,relocationvirtualaddress,currelocationsymbolsectionnumber2,sourcemodname,currelocationsymbolvalue)//
+								}
+								if relocationtype == IMAGE_REL_I386_REL32{
+									noteadd strf("\t\tlpoke rawdata%d,%d,varptr(rawdata%d@%s) + %d - varptr(rawdata%d) - %d",cursectionnumber,relocationvirtualaddress,currelocationsymbolsectionnumber2,sourcemodname,currelocationsymbolvalue,cursectionnumber,relocationvirtualaddress)//
+								}
+							}else{
+								getimportdataall libmaninst,targetsymbol,dllname,impname,procname
+								if dllname != ""{
+									addimpdata dllmaninst,dllname,impname,procname
+									if relocationtype == IMAGE_REL_I386_DIR32{
+										noteadd strf("\t\tlpoke rawdata%d,%d,getdllfuncptr_%s(\"%s\")",cursectionnumber,relocationvirtualaddress,convid,impname)//
+									}
+									if relocationtype == IMAGE_REL_I386_REL32{
+										noteadd strf("\t\tlpoke rawdata%d,%d,getdllfuncptr_%s(\"%s\") - varptr(rawdata%d) - %d",cursectionnumber,relocationvirtualaddress,convid,impname,cursectionnumber,relocationvirtualaddress)//
+									}
+								}else{
+									if weakchance > 0{
+										weakchance--
+										relocationsymboltableindex = objman_getauxsymbolweaktagindex(objmaninst(id(0)),relocationsymboltableindex)
+										goto *lb_getsymsecnum
+									}
+									curobjid = outmodid
+									targetsymbol = objman_getobjsymbolname(objmaninst(id(0)),relocationsymboltableindex)
+									sdim undsym,1024
+									UnDecorateSymbolName targetsymbol,varptr(undsym),1024,0
+									addrelocation brelocmaninst,undsym,objmaninst(id(0)),relocation,cursectionnumber
+									//
+								}
+							}
+						}
+					}else{
+						print "Error:再配置で絶対的セクションのエラー"
+					}
+				}
+				if targetsymbol != ""{
+					sdim undsym,1024
+					UnDecorateSymbolName targetsymbol,varptr(undsym),1024,0
+					addrelocation brewrimaninst,undsym,objmaninst(id(0)),relocation,cursectionnumber
+				}
+				noteunsel
+			loop
+		loop
+		cnvtohspmanurelocfunc brelocmaninst,objmaninst(id(0))
+		tmpstr1 = refstr
+		cnvtohsprewritefunc brewrimaninst,objmaninst(id(0))
+		tmpstr2 = refstr
+		notesel resloc
+		noteadd "\treturn"
+		noteunsel
+		notesel resrel
+		noteadd "\treturn"
+		noteunsel
+		notesel result
+		noteadd resloc
+		noteadd resrel
+		noteadd tmpstr1
+		noteadd tmpstr2
+		noteunsel
+		sdim resgetsymptr
+		sdim rescallsym
+		notesel resgetsymptr
+		noteadd strf("\t#defcfunc getsymbolptr%s str _symbolname",outmodid)
+		noteadd "\t\tsymbolname = _symbolname"
+		noteadd "\t\tptr = 0"
+		noteadd "\t\tswitch symbolname"//
+		noteunsel
+		repeat objman_getnumofsymbols(objmaninst(id(0)))
+			notesel resgetsymptr
+			tmpstr1 = objman_getobjsymbolname(objmaninst(id(0)),cnt)
+			sdim undsym,1024
+			UnDecorateSymbolName tmpstr1,varptr(undsym),1024,0
+			symbolsectionnumber = objman_getobjsymbolsectionnumber(objmaninst(id(0)),cnt)//
+			if (symbolsectionnumber == 0) | (symbolsectionnumber >= $8000):continue
+			noteadd strf("\t\t\tcase \"%s\"",undsym)
+			noteadd strf("\t\t\t\tptr = varptr(rawdata%d) + %d",symbolsectionnumber,objman_getobjsymbolvalue(objmaninst(id(0)),cnt))
+			noteadd "\t\t\tswbreak"//
+			noteunsel
+		loop
+		notesel resgetsymptr
+		noteadd "\t\tswend"
+		noteadd "\treturn ptr"
+		noteunsel
+		notesel result
+		noteadd resgetsymptr
+		noteadd "\t#global"
+		noteadd "\t#endif"
+		noteunsel
+		oresult = oresult + result
+	return
+*failend
+	print "Error:失敗しました(bcnv)":end
+	return
+	#global
+	#endif

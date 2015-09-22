@@ -1,0 +1,54 @@
+	#cmpopt ppout 1
+	
+	#runtime "hsp3cl"
+	
+	#packopt name "obj862hsp"
+	
+	#include "mod_objman.hsp"
+	#include "mod_libman.hsp"
+	#include "mod_impman.hsp"
+	#include "mod_bcnv3.hsp"
+	#include "mod_cmdline.hsp"
+	#include "mod_initscript.hsp"
+	#include "mod_getsymptrwriter.hsp"
+	
+	dimtype objmaninst,vartype("struct")
+	dimtype libmaninst,vartype("struct")
+	dimtype dllmaninst,vartype("struct")
+	sdim result
+	dim id
+	
+	randomize
+	onerror *error
+	
+	execcmdline objmaninst,libmaninst
+	gosub *convtohsp
+	gosub *save
+	
+	end
+
+*convtohsp
+	convid = "" + (rnd(256) * rnd(256))
+	foreach objmaninst
+		id(0) = cnt
+		convtohspobjmodule result,objmaninst,id,libmaninst,dllmaninst,convid
+	loop
+	foreach libmaninst
+		result = result + libman_convallobjmaninst2(libmaninst(cnt),libmaninst,dllmaninst,convid)
+	loop
+	result = convimpdatatohspmodule(dllmaninst,convid) + result
+	result = result + writegetsymptrfunc(convid,objmaninst,libmaninst)
+	result = result + getinitscript(convid,objmaninst,libmaninst)
+	return
+
+*save
+	notesel result
+	notesave getoutputfname()
+	noteunsel
+	print "ïœä∑ID:" + convid
+	print "ïœä∑Ç™äÆóπÇµÇ‹ÇµÇΩÅB"
+	return
+
+*error
+	print "Error:(" + gefile + ")" + wparam + "," + lparam
+	end

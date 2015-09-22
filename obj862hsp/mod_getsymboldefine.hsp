@@ -1,0 +1,37 @@
+	#ifndef _MOD_GETSYMBOLDEFINE_AS_
+	#define _MOD_GETSYMBOLDEFINE_AS_
+	#include "mod_objman.hsp"
+	#module MOD_GETSYMBOLDEFINE
+	#define IMAGE_SYM_CLASS_EXTERNAL 2
+	#deffunc getsymboldefine array _objinst,str _targetsymbol,var findobj,var findsymbol
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		targetsymbol = _targetsymbol
+		findobj = -1
+		if vartype(_objinst) == vartype("struct"){
+			foreach _objinst
+				findsymbol = -1
+				curinst = cnt
+				repeat objman_getnumofsymbols(_objinst(curinst))
+					symbolname = objman_getobjsymbolname(_objinst(curinst),cnt)
+					if symbolname == targetsymbol{
+						symbolstorageclass = objman_getobjsymbolstorageclass(_objinst(curinst),cnt)
+						if symbolstorageclass == IMAGE_SYM_CLASS_EXTERNAL{
+							symbolsectionnumber = objman_getobjsymbolsectionnumber(_objinst(curinst),cnt)
+							if symbolsectionnumber > 0{
+								findsymbol = cnt
+								break
+							}
+						}
+					}
+				loop
+				if findsymbol > -1{
+					findobj = cnt
+					break
+				}
+			loop
+		}
+	return
+	#global
+	#endif

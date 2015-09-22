@@ -1,0 +1,324 @@
+	#ifndef _MOD_PROJMAN_AS_
+	#define _MOD_PROJMAN_AS_
+	#module
+	#deffunc getbatres var data, str batname
+		if batname == "":return
+		newcom wsh, "WScript.Shell"
+		comres c
+		wsh -> "Exec" batname
+		cout = c("StdOut")
+		repeat
+			bf = cout("AtEndOfStream")
+			if bf:break
+			comres ln
+			cout -> "ReadLine"
+			memexpand data,strlen(data) + strlen(ln) + 3
+			data = data + ln + "\n"
+			updatestdoutdata data
+			await 0
+		loop
+		delcom cout
+		delcom wsh
+	return
+	#global
+	#module MOD_OPTMAN cmdline,depindex
+	#modinit
+		cmdline = ""
+		depindex = -1
+		mref tmpid,2
+		id = tmpid
+		dim tmpid
+	return id
+	#modfunc optman_setcmdline str _cmdline
+		cmdline = _cmdline
+	return
+	#modcfunc optman_getcmdline
+	return cmdline
+	#modfunc optman_setdepindex int _depindex
+		depindex = _depindex
+	return
+	#modcfunc optman_getdepindex
+	return depindex
+	#global
+	#module MOD_FILEMAN fname,ftype,optmaninst,optmanindex
+	#define global FILETYPEMASK_SHOWHIDE $0000000_f
+	#define global FILETYPE_HIDE $0000000_0
+	#define global FILETYPE_SHOW $0000000_1
+	#define global FILETYPEMASK_OBJLIB $000000_f_0
+	#define global FILETYPE_NONE $000000_0_0
+	#define global FILETYPE_OBJ  $000000_1_0
+	#define global FILETYPE_LIB  $000000_2_0
+	#define global FILETYPE_PRE  $000000_3_0
+	#modinit str _fname,int _ftype,var _optmaninst
+		fname = _fname
+		ftype = _ftype
+		optmaninst = _optmaninst
+		optmanindex = -1
+		mref tmpid,2
+		id = tmpid
+		dim tmpid
+	return id
+	#modfunc fileman_setoptmanindex int _optmanindex
+		optmanindex = _optmanindex
+	return
+	#modcfunc fileman_getoptmanindex
+	return optmanindex
+	#modcfunc fileman_getfname
+	return fname
+	#modfunc fileman_setfname str _fname
+		fname = _fname
+	return
+	#modcfunc fileman_getftype
+	return ftype
+	#modfunc fileman_setftype int _ftype
+		ftype = _ftype
+	return
+	#modcfunc fileman_getoptcmdline
+	return optman_getcmdline(optmaninst)
+	#modcfunc fileman_getoptdepindex
+	return optman_getdepindex(optmaninst)
+	#modfunc fileman_setoptcmdline str _instr
+		optman_setcmdline optmaninst,_instr
+	return
+	#global
+	#module MOD_PROJMAN projfname,outfname,filemaninst,optmaninst
+	#modinit str _projfname
+		projfname = _projfname
+		dimtype filemaninst,vartype("struct")
+		dimtype optmaninst,vartype("struct")
+		mref tmpid,2
+		id = tmpid
+		dim tmpid
+	return id
+	#modterm
+		foreach filemaninst
+			delmod filemaninst(cnt)
+		loop
+		foreach optmaninst
+			delmod optmaninst(cnt)
+		loop
+	return
+	#modcfunc projman_getoutfname
+	return outfname
+	#modfunc projman_setoutfname str _outfname
+		outfname = _outfname
+	return
+	#modfunc projman_open
+		sdim infiledata
+		notesel infiledata
+		exist projfname
+		if strsize >= 0{
+			noteload projfname
+		}
+		repeat notemax
+			nextcnt = cnt + 1
+			fname = ""
+			ftype = FILETYPE_NONE | FILETYPE_HIDE
+			usesrc = 0
+			sdim cmdclass
+			noteget cmdclass,cnt
+			switch cmdclass
+				case "-out"
+					noteget outfname,cnt + 1
+					nextcnt = cnt + 2
+				swbreak
+				case "-l"
+					noteget fname,cnt + 1
+					ftype = FILETYPE_LIB | FILETYPE_SHOW
+					nextcnt = cnt + 2
+				swbreak
+				case "-o"
+					noteget fname,cnt + 1
+					sdim tmpstr1
+					if notemax >= cnt + 2{
+						noteget tmpstr1,cnt + 2
+						if tmpstr1 == "/src" && notemax >= cnt + 4{
+							usesrc = 1
+							sdim srcfname
+							sdim srccmdline
+							noteget srcfname,cnt + 3
+							ftype = FILETYPE_OBJ | FILETYPE_HIDE
+							srcftype = FILETYPE_PRE | FILETYPE_SHOW
+							srccmdline = ""
+							noteget tmpstr1,cnt + 4
+							if tmpstr1 == "/cmd" && notemax >= cnt + 5{
+								noteget strcurcmdmax,cnt + 5
+								curcmdmax = int(strcurcmdmax)
+								if notemax >= cnt + 5 + curcmdmax{
+									srccmdline = ""
+									cnt1 = cnt
+									repeat curcmdmax
+										noteget cursrccmdline,cnt1 + 6 + cnt
+										srccmdline = srccmdline + cursrccmdline + "\n"
+									loop
+									if curcmdmax > 0{
+										poke srccmdline,strlen(srccmdline) - 2,0
+									}
+									nextcnt = cnt + 6 + curcmdmax
+								}else{
+									nextcnt = cnt + 6
+								}
+							}else{
+								nextcnt = cnt + 5
+							}
+						}else{
+							goto *objfsetatr
+						}
+					}else{
+						*objfsetatr
+						ftype = FILETYPE_OBJ | FILETYPE_SHOW
+						nextcnt = cnt + 2
+					}
+				swbreak
+			swend
+			if (ftype&FILETYPEMASK_OBJLIB) != FILETYPE_NONE{
+				newmod optmaninst,MOD_OPTMAN
+				curomindex = stat
+				newmod filemaninst,MOD_FILEMAN,fname,ftype,optmaninst(curomindex)
+				curfmindex = stat
+				fileman_setoptmanindex filemaninst(curfmindex),curomindex
+				if usesrc{
+					newmod optmaninst,MOD_OPTMAN
+					cursrcomindex = stat
+					optman_setcmdline optmaninst(cursrcomindex),srccmdline
+					optman_setdepindex optmaninst(cursrcomindex),curfmindex
+					newmod filemaninst,MOD_FILEMAN,srcfname,srcftype,optmaninst(cursrcomindex)
+					cursrcfmindex = stat
+					fileman_setoptmanindex filemaninst(cursrcfmindex),cursrcomindex
+				}
+			}
+		loop
+		noteunsel
+	return
+	#modfunc projman_save
+		sdim outfiledata
+		notesel outfiledata
+		if outfname != ""{
+			noteadd "-out"
+			noteadd outfname
+		}
+		foreach filemaninst
+			if fileman_getftype(filemaninst(cnt)) == (FILETYPE_LIB | FILETYPE_SHOW){
+				noteadd "-l"
+				noteadd fileman_getfname(filemaninst(cnt))
+			}
+			if fileman_getftype(filemaninst(cnt)) == (FILETYPE_OBJ | FILETYPE_SHOW){
+				noteadd "-o"
+				noteadd fileman_getfname(filemaninst(cnt))
+			}
+		loop
+		foreach filemaninst
+			if fileman_getftype(filemaninst(cnt)) == (FILETYPE_PRE | FILETYPE_SHOW){
+				depindex = fileman_getoptdepindex(filemaninst(cnt))
+				noteadd "-o"
+				noteadd fileman_getfname(filemaninst(depindex))
+				noteadd "/src"
+				noteadd fileman_getfname(filemaninst(cnt))
+				noteadd "/cmd"
+				curoptcmdline = fileman_getoptcmdline(filemaninst(cnt))
+				noteunsel
+				notesel curoptcmdline
+				curoptcmdlinenotemax = notemax
+				noteunsel
+				notesel outfiledata
+				noteadd str(curoptcmdlinenotemax)
+				noteadd curoptcmdline
+			}
+		loop
+		notesave projfname
+		noteunsel
+	return
+	#modfunc projman_conv var res
+		projman_save thismod
+		sdim compilebatdata
+		notesel compilebatdata
+		foreach filemaninst
+			if fileman_getftype(filemaninst(cnt)) == (FILETYPE_PRE | FILETYPE_SHOW){
+				curfpath = fileman_getfname(filemaninst(cnt))
+				noteadd strmid(curfpath,0,2)
+				noteadd "cd \"" + getpath(curfpath,32) + "\""
+				noteadd fileman_getoptcmdline(filemaninst(cnt))
+			}
+		loop
+		chdir dir_exe
+		exe = dir_exe + "\\"
+		noteadd strmid(exe,0,2)
+		noteadd "cd \"" + getpath(exe,32) + "\""
+		noteadd "obj862hsp " + projfname
+		notesave "cmpl.bat"
+		noteunsel
+		sdim res
+		getbatres res,"cmpl.bat"
+	return
+	#modcfunc projman_getprojfname
+	return projfname
+	#modfunc projman_setprojfname str _projfname
+		projfname = _projfname
+	return
+	#modcfunc projman_getfilefname int _index
+	return fileman_getfname(filemaninst(_index))
+	#modcfunc projman_getfileftype int _index
+	return fileman_getftype(filemaninst(_index))
+	#modcfunc projman_getfileoptcmdline int _index
+	return fileman_getoptcmdline(filemaninst(_index))
+	#modfunc projman_setfileobjfname int _index,str _objfname
+		objfilemanindex = fileman_getoptdepindex(filemaninst(_index))
+		if objfilemanindex == -1:return
+		fileman_setfname filemaninst(objfilemanindex),_objfname
+	return
+	#modfunc projman_setfileoptcmdline int _index,str _cmdline
+		fileman_setoptcmdline filemaninst(_index),_cmdline
+	return
+	#modfunc projman_enumfilemaninsts int _cookie
+		foreach filemaninst
+			projman_enumfilemaninstsproc cnt,_cookie
+		loop
+	return
+	#modcfunc projman_getfileoptdepindex int _index
+	return fileman_getoptdepindex(filemaninst(_index))
+	#modfunc projman_addsrcfile str _srcfname,str _objfname,str _optcmdline
+		fname = _objfname
+		srccmdline = _optcmdline
+		srcfname = _srcfname
+		ftype = FILETYPE_OBJ | FILETYPE_HIDE
+		srcftype = FILETYPE_PRE | FILETYPE_SHOW
+		newmod optmaninst,MOD_OPTMAN
+		curomindex = stat
+		newmod filemaninst,MOD_FILEMAN,fname,ftype,optmaninst(curomindex)
+		curfmindex = stat
+		fileman_setoptmanindex filemaninst(curfmindex),curomindex
+		newmod optmaninst,MOD_OPTMAN
+		cursrcomindex = stat
+		optman_setcmdline optmaninst(cursrcomindex),srccmdline
+		optman_setdepindex optmaninst(cursrcomindex),curfmindex
+		newmod filemaninst,MOD_FILEMAN,srcfname,srcftype,optmaninst(cursrcomindex)
+		cursrcfmindex = stat
+		fileman_setoptmanindex filemaninst(cursrcfmindex),cursrcomindex
+	return cursrcfmindex
+	#modfunc projman_addobjfile str _fname
+		fname = _fname
+		ftype = FILETYPE_OBJ | FILETYPE_SHOW
+		newmod optmaninst,MOD_OPTMAN
+		curomindex = stat
+		newmod filemaninst,MOD_FILEMAN,fname,ftype,optmaninst(curomindex)
+	return stat
+	#modfunc projman_addlibfile str _fname
+		fname = _fname
+		ftype = FILETYPE_LIB | FILETYPE_SHOW
+		newmod optmaninst,MOD_OPTMAN
+		curomindex = stat
+		newmod filemaninst,MOD_FILEMAN,fname,ftype,optmaninst(curomindex)	
+	return stat
+	#modfunc projman_delfile int _filemanindex
+		srcfdepindex = fileman_getoptdepindex(filemaninst(_filemanindex))
+		if srcfdepindex > -1{
+			fomindex = fileman_getoptmanindex(filemaninst(srcfdepindex))
+			delmod filemaninst(srcfdepindex)
+			delmod optmaninst(fomindex)
+		}
+		srcfomindex = fileman_getoptmanindex(filemaninst(_filemanindex))
+		delmod filemaninst(_filemanindex)
+		delmod optmaninst(srcfomindex)
+	return
+	#global
+	#endif

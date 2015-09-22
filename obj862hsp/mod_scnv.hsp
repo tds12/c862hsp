@@ -1,0 +1,52 @@
+	#ifndef _MOD_SCNV_AS_
+	#define _MOD_SCNV_AS_
+	#module
+	#define IMAGE_SCN_MEM_EXECUTE 0x20000000
+	#defcfunc cnvrawdatatohsparrayscript int sectionnumber,int datalen,var data,int characteristics
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		memexpand data,(datalen + 3) / 4 * 4 + 16
+		sdim result
+		notesel result
+		noteadd strf("\t\tdim rawdata%d,%d",sectionnumber,(datalen + 3) / 4)
+		if characteristics & IMAGE_SCN_MEM_EXECUTE{
+			noteadd strf("\t\tVirtualProtect varptr(rawdata%d),%d,$40,varptr(oldprotect)",sectionnumber,(datalen + 3) / 4 * 4)//
+		}
+		if datalen >= 13{
+			repeat (datalen / 4 - 3) / 4 + 1
+				noteadd strf("\t\trawdata%d(%d) = $%08x,$%08x,$%08x,$%08x",sectionnumber,cnt * 4,lpeek(data,cnt * 16),lpeek(data,cnt * 16 + 4),lpeek(data,cnt * 16 + 8),lpeek(data,cnt * 16 + 12))//
+			loop
+		}
+		if datalen \ 16 != 0{
+			switch ((datalen \ 16) + 3) / 4
+				case 1
+					noteadd strf("\t\trawdata%d(%d) = $%08x",sectionnumber,(datalen - 1) / 4,lpeek(data,datalen - (datalen \ 16)))
+				swbreak
+				case 2
+					noteadd strf("\t\trawdata%d(%d) = $%08x,$%08x",sectionnumber,(datalen - 5) / 4,lpeek(data,datalen - (datalen \ 16)),lpeek(data,datalen - (datalen \ 16) + 4))
+				swbreak
+				case 3
+					noteadd strf("\t\trawdata%d(%d) = $%08x,$%08x,$%08x",sectionnumber,(datalen - 9) / 4,lpeek(data,datalen - (datalen \ 16)),lpeek(data,datalen - (datalen \ 16) + 4),lpeek(data,datalen - (datalen \ 16) + 8))
+				swbreak
+			swend
+		}
+		noteunsel
+	return result
+	/*
+	#defcfunc cnvidatatohspfuncscript int sectionnumber,array data
+		sdim result
+		notesel result
+		//
+		noteunsel
+	return result
+	
+	#defcfunc cnvsymboltohspdeffuncscript array data
+		sdim result
+		notesel result
+		//
+		noteunsel
+	return result
+*/
+	#global
+	#endif

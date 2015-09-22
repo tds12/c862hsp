@@ -1,0 +1,32 @@
+	#ifndef _MOD_LOADLIB_AS_
+	#define _MOD_LOADLIB_AS_
+	#include "mod_libman.hsp"
+	#include "mod_cmdline.hsp"
+	#module
+	#deffunc loadlib array libmaninst,str _libfname
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		libfname = _libfname
+		exist libfname
+		libfsize = strsize
+		if libfsize == -1:print "Error:libファイルが開けません":gosub *failend
+		sdim libdata,libfsize
+		bload libfname,libdata,libfsize,0
+		outmodid = getinputshortname(libfname)
+		strrep outmodid,"~","td"
+		outmodid = "_" + outmodid + "_"
+		newmod libmaninst,MOD_LIBMAN,outmodid,libfsize,libdata
+		instid = stat
+		if libman_getlibmanstat(libmaninst(instid)) != 0{
+			print libman_getlibmanstat(libmaninst(instid))
+			delmod libmaninst(instid)
+			gosub *failend
+		}
+		libman_objmaninit libmaninst(instid)
+	return
+*failend
+		print "Error:失敗しました(loadlib)":end
+	return
+	#global
+	#endif

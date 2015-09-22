@@ -1,0 +1,25 @@
+	#ifndef _MOD_INITSCRIPT_AS_
+	#define _MOD_INITSCRIPT_AS_
+	#include "mod_objman.hsp"
+	#include "mod_libman.hsp"
+	#module MOD_INITSCRIPT
+	#defcfunc getinitscript str _convid,array objmaninst,array libmaninst
+		sdim result
+		notesel result
+		noteadd "\tloaddll_" + _convid
+		foreach objmaninst
+			noteadd "\tlocate" + objman_getobjid(objmaninst(cnt))
+		loop
+		foreach libmaninst
+			noteadd "\tlocate" + libman_getlibid(libmaninst(cnt))
+		loop
+		foreach objmaninst
+			noteadd "\trelocate" + objman_getobjid(objmaninst(cnt))
+		loop
+		foreach libmaninst
+			noteadd "\trelocate" + libman_getlibid(libmaninst(cnt))
+		loop
+		noteunsel
+	return result
+	#global
+	#endif

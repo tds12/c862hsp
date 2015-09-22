@@ -1,0 +1,155 @@
+	#ifndef _MOD_IMPMAN_AS_
+	#define _MOD_IMPMAN_AS_
+	#module MOD_IMPMAN impname,procname
+	#modinit str _impname,str _procname
+		impname = _impname
+		procname = _procname
+		mref _ownid,2
+		ownid = _ownid
+		dim _ownid
+	return ownid
+	#modcfunc impman_getimpname
+	return impname
+	#modcfunc impman_getprocname
+	return procname
+	#global
+	#module MOD_DLLMAN dllname,impmaninst
+	#modinit str _dllname
+		dllname = _dllname
+		dimtype impmaninst,vartype("struct")
+		mref _ownid,2
+		ownid = _ownid
+		dim _ownid
+	return ownid
+	#modfunc dllman_addimpname str _impname,str _procname
+		findcnt = -1
+		foreach impmaninst
+			if impman_getimpname(impmaninst(cnt)) == _impname{
+				findcnt = cnt
+				break
+			}
+		loop
+		if findcnt == -1{
+			newmod impmaninst,MOD_IMPMAN,_impname,_procname
+		}
+	return
+	#modfunc dllman_getimpnames array _outnames,array _procnames
+		i = 0
+		sdim _outnames
+		sdim _procnames
+		foreach impmaninst
+			_outnames(i) = impman_getimpname(impmaninst(cnt))
+			_procnames(i) = impman_getprocname(impmaninst(cnt))
+			i++
+		loop
+	return
+	#modcfunc dllman_getdllname
+	return dllname
+	#global
+	#module
+	#deffunc addimpdata array dllmaninst,str _dllname,str _impname,str _procname
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		if vartype(dllmaninst) != vartype("struct"){
+			dimtype dllmaninst,vartype("struct")
+		}
+		findcnt = -1
+		foreach dllmaninst
+			if dllman_getdllname(dllmaninst(cnt)) == _dllname{
+				findcnt = cnt
+				break
+			}
+		loop
+		if findcnt == -1{
+			newmod dllmaninst,MOD_DLLMAN,_dllname
+			dllmanid = stat
+			dllman_addimpname dllmaninst(dllmanid),_impname,_procname
+		}else{
+			dllman_addimpname dllmaninst(findcnt),_impname,_procname
+		}
+	return
+	#defcfunc convimpdatatohspmodule array dllmaninst,str _convid
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		if vartype(dllmaninst) != vartype("struct"){
+			dimtype dllmaninst,vartype("struct")
+		}
+		dim dllmanids
+		sdim result
+		notesel result
+		noteadd "\t#ifndef _MOD_" + _convid + "imp_AS_"
+		noteadd "\t#define _MOD_" + _convid + "imp_AS_"
+		noteadd "\t#module"
+		noteadd "\t#uselib \"kernel32.dll\""
+		noteadd "\t#cfunc LoadLibrary \"LoadLibraryA\" sptr"
+		noteadd "\t#cfunc GetProcAddress \"GetProcAddress\" int,sptr"
+		noteadd "\t#func FreeLibrary \"FreeLibrary\" int"
+		noteadd ""
+		noteadd "\t#deffunc loaddll_" + _convid
+		i = 0
+		foreach dllmaninst
+			noteadd "\t\thdll(" + i + ") = LoadLibrary(\"" + dllman_getdllname(dllmaninst(cnt)) + "\")"
+			dllmanids(i) = cnt//
+			i++
+		loop
+		numofdll = i
+		//
+		sdim impnames
+		dim dllindices
+		i = 0
+		repeat numofdll
+			dllcnt = cnt
+			sdim dllimpnames
+			sdim dllprocnames
+			dllman_getimpnames dllmaninst(dllmanids(cnt)),dllimpnames,dllprocnames
+			repeat length(dllimpnames)
+				impnames(i) = dllimpnames(cnt)
+				dllindices(i) = dllcnt
+				noteadd "\t\tfuncptrs(" + i + ") = GetProcAddress(hdll(" + dllcnt + "),\"" + dllprocnames(cnt) + "\")"
+				//
+				i++
+			loop
+		loop
+		numofimps = i
+		///
+		noteadd "\treturn"
+		noteadd "\t#defcfunc getdllfuncptr_" + _convid + " str _impname"
+		noteadd "\t\timpname = _impname"
+		noteadd "\t\tresptr = 0"
+		noteadd "\t\tswitch impname"
+		if numofdll > 0{
+			repeat length(impnames)
+				noteadd "\t\t\tcase \"" + impnames(cnt) + "\""
+				noteadd "\t\t\t\tresptr = varptr(funcptrs) + " + (cnt * 4)
+				noteadd "\t\t\tswbreak"//
+			loop
+		}
+/*		if numofdll > 0{
+			i = 0
+			foreach dllmanids
+				dllcnt = cnt
+				sdim dllimpnames
+				dllman_getimpnames dllmaninst(dllmanids(cnt)),dllimpnames
+				foreach dllimpnames
+					noteadd "\t\t\tcase \"" + dllimpnames(cnt) + "\t"
+					noteadd "\t\t\t\tres = GetProcAddress(hdll(" + dllcnt + "),\"" + dllimpnames(cnt) + "\")"
+					noteadd "\t\t\tswbreak"
+					i++//
+				loop
+			loop
+		}*/
+		noteadd "\t\tswend"
+		noteadd "\treturn resptr"
+		noteadd "\t#deffunc freedll_" + _convid + " onexit"
+		noteadd "\t\tforeach hdll"
+		noteadd "\t\t\tFreeLibrary hdll(cnt)"
+		noteadd "\t\tloop"
+		noteadd "\treturn"
+		noteadd "\t#global"
+		noteadd "\t#endif"
+		noteunsel
+	return result
+	#global
+	#endif

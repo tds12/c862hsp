@@ -1,0 +1,61 @@
+	#ifndef _MOD_INPUTIMPLIBFILE_AS_
+	#define _MOD_INPUTIMPLIBFILE_AS_
+	#module
+	#define CIMPHEADLEN 20
+	#define IMAGE_FILE_MACHINE_UNKNOWN 0
+	#define CSIZEOFDATAOFFSET 12
+	#define CSIG1OFFSET 0
+	#define CSIG2OFFSET 2
+	#uselib "msvcrt.dll"
+	#cfunc cstrlen "strlen" sptr
+	#deffunc inputshortimplib2 int objfsize,var objdata,var objimpname,var objdllname,var objprocname
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		memexpand objdata,objfsize + 1
+		if objfsize < CIMPHEADLEN:return -1
+		if (wpeek(objdata,CSIG1OFFSET) != IMAGE_FILE_MACHINE_UNKNOWN) || (wpeek(objdata,CSIG2OFFSET) != 0xffff):return -2
+		sizeofdata = lpeek(objdata,CSIZEOFDATAOFFSET)
+		if objfsize < CIMPHEADLEN + sizeofdata:return -3
+		impnamelen = cstrlen(varptr(objdata) + CIMPHEADLEN)
+		dllnamelen = cstrlen(varptr(objdata) + CIMPHEADLEN + impnamelen + 1)
+		sdim objimpname,impnamelen + 1
+		sdim objdllname,dllnamelen + 1
+		memcpy objimpname,objdata,impnamelen,0,CIMPHEADLEN
+		memcpy objdllname,objdata,dllnamelen,0,CIMPHEADLEN + impnamelen + 1
+		nametype = (wpeek(objdata,18) & $1f) >> 2
+		getprocnamefromimpname objprocname,objimpname,nametype
+	return 0
+	#deffunc getprocnamefromimpname var _out,str _in,int _mode
+		in = _in
+		sdim out
+		switch _mode
+			case 3
+				headchar = peek(in,0)
+				if headchar == '?' || headchar == '@' || headchar == '_'{
+					memexpand out,strlen(in)
+					memcpy out,in,strlen(in) - 1,0,1
+				}
+				in = out
+				firstat = strlen(in)
+				repeat strlen(in)
+					if peek(in,cnt) == '@'{
+						firstat = cnt
+						break
+					}
+				loop
+				sdim out,firstat + 1
+				memcpy out,in,firstat,0,0
+			swbreak
+			case 2
+				headchar = peek(in,0)
+				if headchar == '?' || headchar == '@' || headchar == '_'{
+					memexpand out,strlen(in)
+					memcpy out,in,strlen(in) - 1,0,1
+				}
+			swbreak
+		swend
+		_out = out
+	return
+	#global
+	#endif

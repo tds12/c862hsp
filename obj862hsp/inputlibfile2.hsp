@@ -1,0 +1,170 @@
+	#ifndef _MOD_INPUTLIBFILE_AS_
+	#define _MOD_INPUTLIBFILE_AS_
+	#module
+	#defcfunc bigend2ltlend int _in
+		in = _in
+		out = 0
+		poke out,0,peek(in,3)
+		poke out,1,peek(in,2)
+		poke out,2,peek(in,1)
+		poke out,3,peek(in,0)
+	return out
+	#global
+	#module
+	#uselib "msvcrt.dll"
+	#cfunc cstrlen "strlen" sptr
+	#define CFIRSTNUMOFSYMBOLSOFFSET 0
+	#define CSIZEOFLONG 4
+	#define CFIRSTOFFSETSOFFSET 4
+	#deffunc getlibsymbolsandoffsets var firstmember,var libnumofsymbols,array libindices,array libsymbols,array memberoffsets1,var libnumofmembers
+		libnumofsymbols = bigend2ltlend(lpeek(firstmember,CFIRSTNUMOFSYMBOLSOFFSET))
+		dim libindices,libnumofsymbols
+		sdim libsymbols,64,libnumofsymbols
+		symbolcnt = 0
+		symbolstrindex = libnumofsymbols * CSIZEOFLONG + CFIRSTOFFSETSOFFSET
+		indicecnt = -1
+		oldoffset = -1
+		newoffset = 0
+		goto *getsymlopfir
+*getsymrepfir
+*indicerepfir
+		newoffset = bigend2ltlend(lpeek(firstmember,symbolcnt * CSIZEOFLONG + CFIRSTOFFSETSOFFSET))
+		if oldoffset != newoffset:goto *indicelopfir
+		oldoffset = newoffset
+		libindices(symbolcnt) = indicecnt + 1
+		tmpsymbollen = cstrlen(varptr(firstmember) + symbolstrindex)
+		memexpand libsymbols(symbolcnt),tmpsymbollen + 1
+		memcpy libsymbols(symbolcnt),firstmember,tmpsymbollen,0,symbolstrindex
+		symbolstrindex + (tmpsymbollen + 1)
+		symbolcnt++
+		goto *indicerepfir
+*indicelopfir
+		indicecnt++
+		oldoffset = newoffset
+		memberoffsets1(indicecnt) = oldoffset
+*getsymlopfir
+		if symbolcnt < libnumofsymbols:goto *getsymrepfir
+		libnumofmembers = indicecnt
+	return
+	#global
+	#module
+	#uselib "msvcrt.dll"
+	#cfunc cstrlen "strlen" sptr
+	#define CARCHSIGNLEN 8
+	#define CCHRCODE_LF $0a
+	#define CMEMBERHEADLEN 60
+	#define CMEMBERHEADSIZEOFFSET 48
+	#define CMEMBERHEADSIZELEN 10
+	#define CSIZEOFLONG 4
+	#define CSIZEOFSHORT 2
+	#define CSECONDOFFSETSOFFSET 4
+	#define COBJNAMELEN 16
+	#define CFIRSTNUMOFSYMBOLSOFFSET 0
+	#define CFIRSTOFFSETSOFFSET 4
+	#define CLINKERMEMBERNAME "/               "
+	#define CLINKERLONGNAME "//              "
+	#define ctype ISARCH(%1) peek(%1,0) != '!' & peek(%1,1) != '<' & peek(%1,2) != 'a' & peek(%1,3) != 'r' & peek(%1,4) != 'c' & peek(%1,5) != 'h' & peek(%1,6) != '>' & peek(%1,CARCHSIGNLEN - 1) != CHRCODE_LF
+	#deffunc inputlibfile int libfsize,var libdata,var libnumofmembers,var libnumofsymbols,array libindices,array libsymbols,array libheadnames,array libheadsizes,array libmembers
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		//初期化
+		memexpand libdata,libfsize + 1
+		membercnt  = -4
+		lastindex = 0
+		dim libnumofmembers
+		libnumofmembers = 1
+		dim libnumofsymbols
+		dim memberoffsets1
+		dim memberoffsets2
+		dim libindices
+		sdim libsymbols
+		sdim libheadnames
+		dim libheadsizes
+		sdim libmembers
+		//アーカイブシグネチャ確認
+		if libfsize < lastindex + CARCHSIGNLEN:return -1
+		sdim archsign,CARCHSIGNLEN
+		memcpy archsign,libdata,CARCHSIGNLEN - 1,0,0
+		if ISARCH(libdata):return -2
+		lastindex + CARCHSIGNLEN
+		//メンバ取得Repeat
+*getmemrep
+		membercnt++
+		if membercnt >= libnumofmembers:return 0
+		if membercnt >= 0:lastindex = memberoffsets1(membercnt)
+		//メンバヘッダ取得
+		lastindex + (lastindex \ 2)
+		if libfsize < lastindex + CMEMBERHEADLEN:return -3
+		sdim tmplibhead,CMEMBERHEADLEN
+		memcpy tmplibhead,libdata,CMEMBERHEADLEN,0,lastindex
+		if membercnt >= 0:memberoffsets2(membercnt) = lastindex
+		lastindex + CMEMBERHEADLEN
+		//メンバヘッダから情報取得
+		sdim curheadname,COBJNAMELEN
+		memcpy curheadname,tmplibhead,COBJNAMELEN,0,0
+		sdim memberheadsize,CMEMBERHEADSIZELEN
+		memcpy memberheadsize,tmplibhead,CMEMBERHEADSIZELEN,0,CMEMBERHEADSIZEOFFSET
+		membersize = int(memberheadsize)
+		if libfsize < lastindex + membersize:return -4
+		if membercnt == -3{
+			//第1リンカメンバ時
+			sdim firstmember,membersize + 1
+			memcpy firstmember,libdata,membersize,0,lastindex
+			getlibsymbolsandoffsets firstmember,libnumofsymbols,libindices,libsymbols,memberoffsets1,libnumofmembers
+			sdim libmembers,64,libnumofmembers
+			dim libheadsizes,libnumofmembers
+			sdim libheadnames,64,libnumofmembers
+			lastindex + membersize
+		}
+		if (membercnt == -2) && (curheadname != CLINKERLONGNAME){
+			lastindex + membersize
+		}
+		if (curheadname == CLINKERLONGNAME){
+			//長い名前メンバ時
+			sdim longname,membersize + 1
+			memcpy longname,libdata,membersize,0,lastindex
+		}
+		if membercnt >= 0{
+			//オブジェクトメンバ時
+			libheadsizes(membercnt) = membersize
+			memexpand libmembers(membercnt),membersize + 1
+			memcpy libmembers(membercnt),libdata,membersize,0,lastindex
+			libheadnames(membercnt) = getmemberobjname(curheadname)
+		}
+		goto *getmemrep
+	return 0
+	#defcfunc getmemberobjname var _sname
+		objnamecnt = 0
+		sdim tname,COBJNAMELEN + 1
+*objnamerep
+		if peek(_sname,objnamecnt) != '/'{
+			memcpy tname,_sname,1,objnamecnt,objnamecnt
+		}else{
+			if objnamecnt == 0{
+				sdim longobjnameindexstr,COBJNAMELEN
+				memcpy longobjnameindexstr,_sname,COBJNAMELEN - 1,0,1
+				longobjnameindex = int(longobjnameindexstr)
+				longobjnamelen = cstrlen(varptr(longname) + longobjnameindex)
+				memexpand tname,longobjnamelen + 1
+				memcpy tname,longname,longobjnamelen,0,longobjnameindex
+				goto *gmonexit
+			}
+			goto *gmonexit
+		}
+		objnamecnt++
+		if objnamecnt <= COBJNAMELEN:goto *objnamerep
+*gmonexit
+	return tname
+	#global
+	#endif
+	#if 0
+	dialog ,16
+	fname = refstr
+	exist fname
+	fsize = strsize
+	sdim libdata,fsize
+	bload fname,libdata
+	inputlibfile fsize,libdata,libnumofmembers,libnumofsymbols,libindices,libsymbols,libheadnames,libheadsizes,libmembers
+	mes stat
+	#endif

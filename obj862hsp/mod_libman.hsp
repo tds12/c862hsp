@@ -1,0 +1,226 @@
+	#ifndef _MOD_LIBMAN_AS_
+	#define _MOD_LIBMAN_AS_
+	#include "inputlibfile2.hsp"
+	#include "mod_objman.hsp"
+	#include "inputimplibfile2.hsp"
+	#include "mod_implibman.hsp"
+	#include "mod_bcnv3.hsp"
+	#include "mod_getsymboldefine.hsp"
+	#module MOD_LIBMAN libid,libfsize,libdata,libmanstat,objmaninst,objmaninstids,implibmaninstids,implibmaninst,libnumofmembers,libmaninst,libnumofsymbols,libindices,libsymbols,libheadnames,libheadsizes,libmembers,exporteddec,exportedund
+	#uselib "dbghelp.dll"
+	#func UnDecorateSymbolName "UnDecorateSymbolName" sptr,int,int,int
+	#modinit str _libid,int _libfsize,var _libdata
+		libid = _libid
+		libfsize = _libfsize
+		libmanstat = 0
+		sdim libdata,libfsize + 1
+		memcpy libdata,_libdata,libfsize,0,0
+		inputlibfile libfsize,libdata,libnumofmembers,libnumofsymbols,libindices,libsymbols,libheadnames,libheadsizes,libmembers//
+		_stat = stat
+		if _stat != 0:libmanstat = _stat
+		dim objmaninst
+		mref _ownid,2
+		ownid = _ownid
+		dim _ownid
+	return ownid
+	#modcfunc libman_getlibmanstat
+	return libmanstat
+	#modcfunc libman_getlibid
+	return libid
+	#modcfunc libman_getlibnumofmembers
+	return libnumofmembers
+	#modcfunc libman_getlibnumofsymbols
+	return libnumofsymbols
+	#modcfunc libman_getlibindice int _index
+	return libindices(_index)
+	#modcfunc libman_getlibsymbol int _index
+	return libsymbols(_index)
+	#modcfunc libman_getlibheadname int _index
+	return libheadnames(_index)
+	#modcfunc libman_getlibheadsize int _index
+	return libheadsizes(_index)
+	#modfunc libman_getlibmembers var _out,int _index
+		if vartype(_out) == vartype("str"){
+			memexpand _out,libheadsizes(_index)
+			memset _out,0,libheadsizes(_index),0
+		}else{
+			sdim _out,libheadsizes(_index)
+		}
+		memcpy _out,libmembers(_index),libheadsizes(_index),0,0
+	return
+	#modfunc libman_setexporteddec str _exporteddec
+		oldexporteddec = _exporteddec
+		sdim exporteddec
+		split oldexporteddec,"\n",exporteddec
+	return
+	#modfunc libman_setexportedund str _exportedund
+		oldexportedund = _exportedund
+		sdim exportedund
+		split oldexportedund,"\n",exportedund
+	return
+	#modfunc libman_objmaninit
+		dimtype objmaninst,vartype("struct"),libnumofmembers
+		dimtype implibmaninst,vartype("struct"),libnumofmembers
+		dim objmaninstids,libnumofmembers
+		dim implibmaninstids,libnumofmembers
+		repeat libnumofmembers
+			newmod objmaninst,MOD_OBJMAN,libid + "_" + str(cnt) + "_",libheadsizes(cnt),libmembers(cnt)
+			instid = stat
+			objmaninstids(cnt) = instid
+			objmanstat = objman_getobjmanstat(objmaninst(instid))
+			implibmaninstids(cnt) = -1
+			if objmanstat != 0{
+				delmod objmaninst(instid)
+				objmaninstids(cnt) = -1
+				if objmanstat == 1{
+					newmod implibmaninst,MOD_IMPLIBMAN,libid + "_" + str(cnt),libheadsizes(cnt),libmembers(cnt)
+					instid = stat
+					implibmaninstids(cnt) = instid
+					if implibman_getimplibmanstat(implibmaninst(instid)) < 0{
+						implibmaninstids(cnt) = -1
+						delmod implibmaninst(instid)
+					}
+				}
+			}
+		loop
+	return
+	#modcfunc libman_convallobjmaninst
+		sdim result
+		foreach objmaninst
+			id(0) = cnt
+			convtohspobjmodule result,objmaninst,id,libmaninst
+		loop
+	return result
+	#modcfunc libman_convallobjmaninst2 array _libmaninst,array _dllmaninst, str _convid
+		sdim result
+		notesel result
+		outmodlabel = "_MOD_" + libid + "_AS_"
+		noteadd "\t#ifndef " + outmodlabel
+		noteadd "\t#define " + outmodlabel//
+		noteunsel
+		foreach objmaninst
+			id(0) = cnt
+			convtohspobjmodule result,objmaninst,id,_libmaninst,_dllmaninst,_convid
+		loop
+		notesel result
+		noteadd "\t#module m" + libid
+		noteadd "\t#deffunc locate" + libid
+		foreach objmaninst
+			noteadd "\t\tlocate" + objman_getobjid(objmaninst(cnt))
+		loop
+		noteadd "\treturn"
+		noteadd "\t#deffunc relocate" + libid
+		foreach objmaninst
+			noteadd "\t\trelocate" + objman_getobjid(objmaninst(cnt))
+		loop
+		noteadd "\treturn"
+		noteadd "\t#global"
+		noteadd "\t#endif"
+		noteunsel
+	return result
+	#modcfunc libman_globalsymbolexists str _targetsymbol
+		brf = 0
+		repeat libnumofsymbols
+			if libsymbols(cnt) == _targetsymbol{
+				brf = 1
+				break
+			}
+		loop
+	return brf
+	#modcfunc libman_exportedsymbolexists str _targetsymbol,int decoratedmode
+		brf = 0
+		if decoratedmode == 0{
+			tmparraylen = length(exporteddec)
+			targetsymbol = _targetsymbol
+			dup exportslist,exporteddec
+		}else{
+			tmparraylen = length(exportedund)
+			sdim targetsymbol,1024
+			UnDecorateSymbolName _targetsymbol,varptr(targetsymbol),1024,0
+			dup exportslist,exportedund
+		}
+		repeat tmparraylen
+			if exportslist(cnt) == targetsymbol{
+				brf = 1
+				break
+			}
+		loop
+	return brf
+	#modfunc libman_getsymboldefinelocal str _targetsymbol,var findobj,var findsymbol
+		findobj = -1
+		findsymbol = -1
+		if libman_globalsymbolexists(thismod,_targetsymbol) != 0{
+			getsymboldefine objmaninst,_targetsymbol,findobj,findsymbol
+		}
+	return
+	#modfunc libman_getsymboldefineglobal str _targetsymbol,int decoratedmode,var findobj,var findsymbol
+		findobj = -1
+		findsymbol = -1
+		if libman_globalsymbolexists(thismod,_targetsymbol) != 0{
+			if (libman_exportedsymbolexists(thismod,_targetsymbol,decoratedmode) != 0) || ((exporteddec == 0) && (exportedund == 0)){
+				getsymboldefine objmaninst,_targetsymbol,findobj,findsymbol
+			}
+		}
+	return
+	#modcfunc libman_getobjid int _objmaninstindex
+	return objman_getobjid(objmaninst(_objmaninstindex))
+	#modcfunc libman_getobjsymbolvalue int _objmaninstindex,int _symbolindex
+	return objman_getobjsymbolvalue(objmaninst(_objmaninstindex),_symbolindex)
+	#modcfunc libman_getobjsymbolsectionnumber int _objmaninstindex,int _symbolindex
+	return objman_getobjsymbolsectionnumber(objmaninst(_objmaninstindex),_symbolindex)
+	#modfunc libman_getimportdata str _targetsymbol,var dllname,var impname,var procname
+		dllname = ""
+		impname = ""
+		matchindex = -1
+		repeat libnumofsymbols
+			if libsymbols(cnt) == _targetsymbol{
+				matchindex = cnt
+				break
+			}
+		loop
+		if matchindex == -1:return
+		objindex = libindices(matchindex) - 1
+		dllname = implibman_getobjdllname(implibmaninst(implibmaninstids(objindex)))
+		impname = implibman_getobjimpname(implibmaninst(implibmaninstids(objindex)))
+		procname = implibman_getobjprocname(implibmaninst(implibmaninstids(objindex)))
+	return
+	#modfunc libman_getobjids array objids
+		i = 0
+		sdim objids
+		foreach objmaninst
+			objids(i) = objman_getobjid(objmaninst(cnt))
+			i++
+		loop
+	return
+	#global
+	#module
+	#deffunc getsymboldefinelibglobalall array libmaninst,str _targetsymbol,var findlib,var findobj,var findsymbol
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		findlib = -1
+		findobj = -1
+		findsymbol = -1
+		foreach libmaninst
+			cnt1 = cnt
+			repeat 2
+				libman_getsymboldefineglobal libmaninst(cnt1),_targetsymbol,cnt,findobj,findsymbol
+				if findobj > -1:break
+			loop
+			if findobj > -1{
+				findlib = cnt
+				break
+			}
+		loop
+	return
+	#deffunc getimportdataall array libmaninst,str _targetsymbol,var dllname,var impname,var procname
+	#ifdef _debug
+		gefile@ = __FILE__
+	#endif
+		foreach libmaninst
+			libman_getimportdata libmaninst(cnt),_targetsymbol,dllname,impname,procname
+			if dllname != "":break
+		loop
+	return
+	#global
+	#endif

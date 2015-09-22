@@ -1,0 +1,27 @@
+	#ifndef _MOD_SRELOCMAN_AS_
+	#define _MOD_SRELOCMAN_AS_
+	#include "mod_relocutil.hsp"
+	#module MOD_SRELOCMAN symbol,relocationvirtualaddress,relocationsymboltableindex,relocationtype,cursectionnumber,index
+	#define IMAGE_REL_I386_DIR32 0x0006
+	#define IMAGE_REL_I386_REL32 0x0014
+	#modinit var relocation,int _cursectionnumber,int _index
+		getrelocationdata relocation,relocationvirtualaddress,relocationsymboltableindex,relocationtype
+		cursectionnumber = _cursectionnumber
+		index = _index
+	return
+	#modcfunc srelocman__getvirtualaddress
+	return relocationvirtualaddress
+	#modcfunc srelocman__getsectionnumber
+	return sectionnumber
+	#modcfunc srelocman__cnvtohsprelocstat
+		sdim result
+		if relocationtype == IMAGE_REL_I386_REL32{
+			result = strf("\t\t\t\tlpoke rawdata%d,%d,_relocmapp - varptr(rawdata%d) - %d",cursectionnumber,relocationvirtualaddress,cursectionnumber,relocationvirtualaddress)//
+		}else{
+			if relocationtype == IMAGE_REL_I386_DIR32{
+				result = strf("\t\t\t\tlpoke rawdata%d,%d,_relocmapp",cursectionnumber,relocationvirtualaddress)
+			}
+		}
+	return result
+	#global
+	#endif

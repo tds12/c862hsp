@@ -1,0 +1,23 @@
+	#ifndef _MOD_IINPUTMAN_AS_
+	#define _MOD_INPPUTMAN_AS_
+	#include "mod_loadobj.hsp"
+	#include "mod_loadlib.hsp"
+	#module MOD_INPUTMAN fname,mode
+	#define global INPUTMODE_NONE 0
+	#define global INPUTMODE_OBJ 1
+	#define global INPUTMODE_LIB 2
+	#modinit str _fname,int _mode
+		fname = _fname
+		mode = _mode
+	return
+	#modfunc inputman_input array objmaninst,array libmaninst
+		if mode != INPUTMODE_NONE{
+			if mode == INPUTMODE_OBJ{
+				loadobj objmaninst,fname
+			}else{
+				loadlib libmaninst,fname
+			}
+		}
+	return
+	#global
+	#endif

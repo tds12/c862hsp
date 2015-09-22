@@ -1,0 +1,691 @@
+	#packopt name "c862hsp"
+	#packopt hide 1
+	
+	#include "obj.as"
+	#include "hsp3util.as"
+	#include "user32.as"
+	
+	#define WM_SIZE	$00000005
+	#define WM_SIZING	$00000214
+	#define WS_MAXIMIZEBOX	$00010000
+	#define BM_SETSTYLE	$000000F4
+	#define WS_GROUP	$00020000
+	#define WS_CHILD	$40000000
+	#define BS_AUTORADIOBUTTON	$00000009
+	#define BS_PUSHLIKE	$00001000
+	#define WS_VISIBLE	$10000000
+	#define BM_GETCHECK	$000000F0
+	#define GWL_STYLE	$FFFFFFF0
+	#define WM_GETMINMAXINFO	$00000024
+	#define EM_LIMITTEXT	$000000C5
+	#define EM_SETSEL	$000000B1
+	#define EM_SCROLLCARET	$000000B7
+	#define LB_ADDSTRING	$00000180
+	#define LB_DELETESTRING	$00000182
+	#define LB_SETITEMDATA	$0000019A
+	#define LB_GETITEMDATA	$00000199
+	#define LB_GETCURSEL	$00000188
+	#define LB_SETCURSEL $186
+	#define LB_ERR	$FFFFFFFF
+	#define LBN_SELCHANGE	$00000001
+	#define WM_COMMAND	$00000111
+	#define EN_CHANGE	$00000300
+	#define WM_GETTEXTLENGTH	$0000000E
+	#define ctype HIWORD(%1) (%1 >> 16 & $FFFF)
+	
+	#include "mod_projman.hsp"
+	
+	gosub *initvars//変数初期化
+	gosub *initwnds//ウィンドウ達を初期化
+	stop//待機
+*initvars//変数初期化
+	dim rect,4//RECT型の汎用整数型配列変数
+	dim oldsel//以前に選択されたスクリーンＩＤ
+	dim oldselsp//oldselのスタックポインタ
+	dim cliwid//メインウィンドウのクライアント幅
+	dim clihei//メインウィンドウのクライアント高
+	dim fliststat//ファイルリストの状態
+	sdim flistdata//ファイルリストのデータ
+	dim flistid//ファイルリストのオブジェクトＩＤ
+	dim hflist//ファイルリストのウィンドウハンドル
+	dim flistcursel//ファイルリストでの現在の選択
+	sdim ftxtdata//ファイルテキストのデータ
+	sdim ftxtdata2//更新用ファイルテキストのデータ
+	dim ftxtid//ファイルテキストオブジェクトＩＤ
+	dim hftxt//ファイルテキストのウィンドウハンドル
+	dim ftxtlen//ファイルテキストのバイト数
+	sdim result//結果用文字列変数
+	dim resid//結果オブジェクトＩＤ
+	dim minmaxinfo,10//MINMAXINFO用配列
+	dim hres//結果ウィンドウハンドル
+	sdim buf2//汎用バッファ
+	dim newfileid//ファイルオブジェクトＩＤ
+	dim savefileid//上書きオブジェクトＩＤ
+	dim convprojid//変換オブジェクトＩＤ
+	sdim result2//結果更新用文字列変数
+	sdim resulthsp//hspの結果用文字列変数
+	dimtype projmaninst,vartype("struct")//プロジェクトマネージャインスタンス
+	sdim projfname//プロジェクトファイル名
+	sdim outfname//出力ファイル名
+	dim editingfile//編集中のファイルインデックス
+	editingfile = -1//初期値は-1
+	sdim curfname//現在のファイル名
+	dim curflistsel//現在のファイルリストの選択(一時的)
+	dim curflistitemdata//現在のファイルリスト選択のアイテムデータ
+	dim curfileindex//現在のファイルインデックス
+	dim curfileftype//現在のファイルタイプ
+	sdim fileeditsrcfname//ファイル変更ソースファイル名
+	dim fileeditsrcfnameid//ファイル変更ソースファイル名のオブジェクトＩＤ
+	sdim fileeditobjfname//ファイル変更オブジェクトファイル名
+	dim fileeditobjfnameid//ファイル変更オブジェクトファイル名のオブジェクトＩＤ
+	sdim fileeditcmdline//ファイル変更コマンドライン
+	dim fileeditcmdlineid//ファイル変更コマンドラインのオブジェクトＩＤ
+	sdim vinpprojfname,1025//プロジェクトファイル名入力用変数
+	dim inpprojfnameid//プロジェクトファイル名入力のオブジェクトＩＤ
+	dim projeditid//プロジェクト編集ボタンのオブジェクトＩＤ
+	sdim newfilename//新規ファイル名
+	sdim curfilecmdline//現在のファイルコマンドライン
+	dim curobjfileindex//現在のオブジェクトファイルのファイルインデックス
+	sdim curobjfilename//現在のオブジェクトファイルのファイル名
+	sdim cursrcfilename//現在のソースファイルのファイル名
+	sdim voutphspfname,1025
+	dim outphspfnameid
+	dim showoutid
+	return
+*initwnds//ウィンドウ達を初期化
+	gosub *initwnd0//非表示ウィンドウ初期化
+	gosub *initwnd1//メインウィンドウ初期化
+	gosub *initwnd2//プロジェクト用第１画面初期化
+	gosub *initwnd3//ファイル用第１画面初期化
+	gosub *initwnd4//プロジェクト編集用画面初期化
+	gosub *initwnd5//ファイル新規用画面初期化
+	gosub *initwnd6//ファイル変更用画面初期化
+	gsel 1,1
+	onexit gosub *exit//終了処理設定
+	return
+*initwnd0//非表示ウィンドウ初期化
+	gosub *initscr0//スクリーンの初期化
+	return
+*initwnd1//メインウィンドウ初期化
+	gosub *initscr1//スクリーンの初期化
+	gosub *initui1//ＵＩの初期化
+	gsel 1,1//表示
+	return
+*initwnd2//プロジェク第１ウィンドウ初期化
+	gosub *initscr2//スクリーン初期化
+	gosub *initui2//ＵＩの初期化
+	return
+*initwnd3//ファイル第１ウィンドウ初期化
+	gosub *initscr3//スクリーン初期化
+	gosub *initui3//ＵＩの初期化
+	return
+*initwnd4//プロジェクト編集ウィンドウ初期化
+	gosub *initscr4//スクリーン初期化
+	gosub *initui4//ＵＩの初期化
+	return
+*initwnd5//ファイル新規ウィンドウ初期化
+	gosub *initscr5//スクリーン初期化
+	gosub *initui5//ＵＩの初期化
+	return
+*initwnd6//ファイル変更ウィンドウ初期化
+	gosub *initscr6//スクリーン初期化
+	gosub *initui6//ＵＩの初期化
+	return
+*initscr0//スクリーン０の初期化
+	gsel 0,-1//ウィンドウを非表示にする
+	return
+*initscr1//スクリーン１の初期化
+	screen 1,ginfo_dispx,ginfo_dispy,2,,,640,480//メインウィンドウ初期化
+	GetWindowLong hwnd, -16//ウィンドウスタイルを取得し
+	SetWindowLong hwnd, -16, stat | WS_MAXIMIZEBOX//変更
+	oncmd gosub *on_sizing,WM_SIZING//サイズ変更時割り込み設定
+	oncmd gosub *on_sizing,WM_SIZE//サイズ変更後割り込み設定
+	oncmd gosub *on_getminmaxinfo,WM_GETMINMAXINFO//最大最小サイズ取得時割り込み設定
+	oncmd gosub *on_command,WM_COMMAND//コマンド時割り込み設定
+	dim rect,4//汎用変数の再初期化
+	GetClientRect hwnd,varptr(rect)//クライアント領域取得
+	if stat{//エラーチェック
+		cliwid = rect.2//クライアント幅保存
+		clihei = rect.3//クライアント高保存
+	}
+	title "c862hsp"//タイトル設定
+	return
+*initscr2//スクリーン２の初期化
+	screen 2,200,250,6//プロジェクト用第１画面初期化
+	title "プロジェクト c862hsp"//タイトル設定
+	return
+*initscr3//スクリーン３の初期化
+	screen 3,200,250,6//ファイル用第１画面初期化
+	title "ファイル c862hsp"//タイトル設定
+	return
+*initscr4//スクリーン４の初期化
+	screen 4,500,250,6//プロジェクト編集画面初期化
+	title "プロジェクト編集 c862hsp"//タイトル設定
+	return
+*initscr5//スクリーン５の初期化
+	screen 5,200,250,6//ファイル新規画面初期化
+	title "ファイル新規 c862hsp"//タイトル設定
+	return
+*initscr6//スクリーン６の初期化
+	screen 6,500,350,6//ファイル変更画面初期化
+	title "ファイルの変更"//タイトル設定
+	return
+*initui1//スクリーン１のＵＩ初期化
+	//メイン画面
+	syscolor 15//背景色で
+	boxf//塗りつぶし
+	pos 0,0//位置設定
+	objsize 80,30//サイズ設定
+	button gosub "プロジェクト",*newproj//プロジェクトボタン設置
+	pos 80,0//位置設定
+	objsize 80,30//サイズ設定
+	button gosub "ファイル",*newfile//ファイルボタン設置
+	newfileid = stat//ファイルオブジェクトＩＤ保存
+	objenable newfileid,0//無効化
+	pos 160,0//位置設定
+	objsize 80,30//サイズ設定
+	button gosub "上書き",*savefile//上書きボタン設置
+	savefileid = stat//上書きオブジェクトＩＤ保存
+	objenable savefileid,0//無効化
+	pos 240,0//位置設定
+	objsize 80,30//サイズ設定
+	button gosub "変換",*convproj//変換ボタン設置
+	convprojid = stat//変換オブジェクトＩＤ保存
+	objenable convprojid,0//無効化
+	pos 0,30//座標指定
+	objsize 160,clihei - 30//サイズ指定
+	objmode 1,1//tab有効化
+	listbox fliststat,0,flistdata//リストボックス作成
+	flistid = stat//ファイルリストのＩＤ保存
+	hflist = objinfo(flistid,2)//ウィンドウハンドル保存
+	pos 160,0//位置指定
+	objsize cliwid - 160,clihei - 150 - 30//オブジェサイズ指定
+	objmode 1,0//既定フォントのtab無効
+	mesbox ftxtdata,,,5,0//エディタ作成
+	ftxtid = stat//エディタＩＤ保存
+	hftxt = objinfo(ftxtid,2)//ウィンドウハンドル保存
+	objenable ftxtid,0//無効化
+	pos 160,clihei - 150
+	objsize 80,30
+	button gosub "出力表示",*showout
+	showoutid = stat
+	objenable showoutid,0
+	pos 160,clihei - 120//座標指定
+	objsize cliwid - 160,limit(120,0,clihei - 60)//オブジェサイズ指定
+	objmode 1,0//tab無効化
+	mesbox result,,,4,0//結果mesbox設置
+	resid = stat//結果オブジェクトＩＤ保存
+	hres = objinfo(resid,2)//ウィンドウハンドル保存
+	return
+*initui2//スクリーン２のＵＩ初期化
+	//プロジェクト第１画面
+	syscolor 15//背景色で
+	boxf//塗りつぶし
+	pos 50,50//位置設定
+	objsize 100,50//サイズ指定
+	button gosub "新規",*projnew//プロジェクト新規ボタン設置
+	button gosub "開く",*projopen//プロジェクト開くボタン設置
+	button gosub "編集",*projedit//プロジェクト編集ボタン設置
+	projeditid = stat
+	objenable projeditid,0
+	return
+*initui3//スクリーン３のＵＩ初期化
+	//ファイル第１画面
+	syscolor 15//背景色で
+	boxf//塗りつぶし
+	pos 50,50//位置指定
+	objsize 100,50//サイズ指定
+	button gosub "新規",*filenew//ファイル新規ボタン設置
+	button gosub "変更",*fileedit//ファイル変更ボタン設置
+	button gosub "削除",*filedel//ファイル削除ボタン設置
+	return
+*initui4//スクリーン４のＵＩ初期化
+	//プロジェクト編集画面
+	syscolor 15//背景色で
+	boxf//塗りつぶし
+	pos 50,50//位置指定
+	objsize 200,50//サイズ指定
+	statictext "プロジェクトファイル名"//スタティック設置
+	pos 250,50
+	input vinpprojfname,,,1024//プロジェクトファイル名入力用設置
+	inpprojfnameid = stat//オブジェクトＩＤ保存
+	pos 50,100
+	statictext "出力HSPファイル名"
+	pos 250,100
+	input voutphspfname,,,1024
+	outphspfnameid = stat
+	pos 50,150
+	objsize 400,50
+	button gosub "決定",*projeditok//プロジェクト編集決定ボタン設置
+	return
+*initui5//スクリーン５のＵＩ初期化
+	//ファイル新規画面
+	syscolor 15//背景色で
+	boxf//塗りつぶし
+	pos 50,50//位置指定
+	objsize 100,50//サイズ指定
+	button gosub "obj",*filenewobj
+	button gosub "lib",*filenewlib
+	button gosub "ソースコード",*filenewsrc
+	return
+*initui6//スクリーン６のＵＩ初期化
+	//ファイル変更画面
+	syscolor 15//背景色で
+	boxf//塗りつぶし
+	pos 50,50//位置指定
+	objsize 200,50//サイズ指定
+/*	statictext "ソースファイル名"//スタティック設置
+	sdim fileeditsrcfname,1024//変数最初期化
+	pos 250,50
+	input fileeditsrcfname//ソースファイル名入力用設置
+	fileeditsrcfnameid = stat//オブジェクトＩＤ保存*/
+	pos 50,50
+	statictext "オブジェクトファイル名"//スタティック設置
+	sdim fileeditobjfname,1024//変数最初期化
+	pos 250,50
+	input fileeditobjfname//オブジェクトファイル入力用設置
+	fileeditobjfnameid = stat//オブジェクトＩＤ保存
+	pos 50,100
+	objsize 400,50
+	statictext "コマンドライン(複数行可)"//スタティック設置
+	sdim fileeditcmdline,65536//変数最初期化
+	mesbox fileeditcmdline,400,100,5//コマンドライン入力用設置
+	fileeditcmdlineid = stat//オブジェクトＩＤ保存
+	objsize 400,50//サイズ指定
+	button gosub "決定",*fileeditok//ファイル変更決定ボタン設置
+	return
+*on_sizing//メインウィンドウサイズ変更時・後割り込み実行先
+	oldselsp++//oldselのスタックポインタインクリメント
+	oldsel.oldselsp = ginfo_sel//旧選択済みスクリーンＩＤ保存
+	gsel ginfo_intid//割り込み元スクリーンを選択
+	syscolor 15//背景色で
+	boxf//塗りつぶし
+	dim rect,4//汎用変数再初期化
+	GetClientRect hwnd,varptr(rect)//クライアント領域取得
+	if stat{//エラーチェック
+		cliwid = rect.2//クライアント幅保存
+		clihei = rect.3//クライアント高保存
+		dim rect,4//汎用変数再初期化
+		rect = 160,clihei - 30,0,30//サイズ代入
+		resizeobj flistid,rect//ファイルリストリサイズ
+		dim rect,4//汎用変数再初期化
+		rect = cliwid - 160,clihei - 150 - 30,160,30//サイズ代入
+		resizeobj ftxtid,rect//ファイルテキストリサイズ
+		dim rect,4
+		rect = 80,30,160,clihei - 150
+		resizeobj showoutid,rect
+		dim rect,4//汎用変数再初期化
+		rect = cliwid - 160,limit(120,0,clihei - 60),160,limit(clihei - 120,60,clihei)//サイズ設定
+		resizeobj resid,rect//実行
+	}
+	syscolor 15//背景色で
+	boxf//塗りつぶす
+	gsel oldsel.oldselsp//旧スクリーンの再選択
+	oldselsp--//スタックポインタデクリメント
+	return
+*on_getminmaxinfo//WM_GETMINMAXINFO
+	dupptr minmaxinfo,lparam,40,4//領域取得
+	minmaxinfo = 0,0,ginfo_dispx,ginfo_dispy,0,0,480,300,ginfo_dispx,ginfo_dispy//情報設定
+	return 0//処理済み
+*on_command//WM_COMMAND
+	lp = lparam//lparam保存
+	wp = wparam//wparam保存
+	oldselsp++//oldselのスタックポインタインクリメント
+	oldsel.oldselsp = ginfo_sel//旧選択済みスクリーンＩＤ保存
+	gsel ginfo_intid//割り込み元スクリーンを選択
+	switch lp//ウィンドウハンドルごとに分岐
+		case hflist//ファイルリスト時
+			if HIWORD(wp) == LBN_SELCHANGE{//選択変更時
+				sendmsg hflist,LB_GETCURSEL,0,0//選択取得
+				curflistsel = stat//戻り値保存
+				if curflistsel != LB_ERR{
+					sendmsg hflist,LB_GETITEMDATA,curflistsel,0//アイテムデータ取得
+					curflistitemdata = stat//戻り値保存
+					if projman_getfileftype(projmaninst,curflistitemdata) == (FILETYPE_PRE | FILETYPE_SHOW){
+						//ソースコードの場合
+						if editingfile == curflistitemdata{
+							swbreak
+						}
+						if (editingfile != -1) && (editingfile != curflistitemdata){
+							//編集中か
+							dialog "ファイルを保存しますか？",2,"確認"//確認ダイアログ表示
+							if stat == 6{//はいの場合
+								gosub *savefile//ファイル保存
+							}
+						}
+						editingfile = curflistitemdata//編集中ファイル更新
+						editingfname = projman_getfilefname(projmaninst,editingfile)//編集中ファイル名取得
+						sdim ftxtdata2//変数再初期化
+						notesel ftxtdata2//ノート選択
+						exist editingfname
+						if strsize >= 0{
+							noteload editingfname//編集中ファイルを読み込み
+						}else{
+							dialog "ファイルが存在しませんでした"
+							noteunsel
+							gsel 1
+							editingfile = -1
+							swbreak
+						}
+						noteunsel//ノート選択解除
+						gsel 1//メインウィンドウ選択
+						sendmsg hftxt,EM_LIMITTEXT,strlen(ftxtdata2) + 4096,0//書き込み限界更新
+						objprm ftxtid,ftxtdata2//ファイルテキスト更新
+						objenable ftxtid,1//ファイルテキストオブジェクト有効化
+						objenable savefileid,1//上書きボタン有効化
+					}
+				}
+			}
+		swbreak
+		case hftxt//ファイルテキスト時
+			if HIWORD(wp) == EN_CHANGE{//変更時
+				sendmsg hftxt,WM_GETTEXTLENGTH,0,0//文字数取得
+				ftxtlen = stat//文字数取得
+				sendmsg hftxt,EM_LIMITTEXT,ftxtlen * 2 + 4096,0//限界バイト数設定
+			}
+		swbreak
+	swend
+	gsel oldsel.oldselsp//旧スクリーンの再選択
+	oldselsp--//スタックポインタデクリメント
+	return
+*newproj//プロジェクト時
+	gsel 2,1//プロジェクト用第１画面表示
+	gsel 1,-1
+	return
+*newfile//ファイル時
+	gsel 3,1//ファイル用第１画面表示
+	gsel 1,-1
+	return
+*savefile//上書き時
+	if editingfile == -1{
+		dialog "編集中のファイルはありません"//ダイアログ表示
+		return//ファイルが選択されていなければ返す
+	}
+	curfname = projman_getfilefname(projmaninst,editingfile)//ファイル名取得
+	notesel ftxtdata//ノート選択
+	notesave curfname//ファイル保存
+	noteunsel//ノート選択解除
+	return
+*convproj//変換時
+	gsel 1,2//メイン画面最前面に表示
+	objenable convprojid,0//変換ボタン無効化
+	sdim result2//汎用変数最初期化
+	if editingfile != -1:gosub *savefile
+	projman_conv projmaninst,result2//変換
+	sendmsg hres,EM_LIMITTEXT,strlen(result2) + 1,0//限界設定
+	objprm resid,result2//結果更新
+	sendmsg hres,EM_SETSEL,strlen(result2),strlen(result2)//最後尾選択
+	sendmsg hres,EM_SCROLLCARET,0,0//選択位置へ移動
+	objenable convprojid,1//変換ボタン有効化
+	gsel 1,1//メイン画面通常表示
+	return
+*showout
+	if varuse(projmaninst) == 1{
+		projoutfname = projman_getoutfname(projmaninst)
+		exist projoutfname
+		if strsize >= 0{
+			exec "notepad \"" + projoutfname + "\""
+		}else{
+			dialog {"出力ファイルが存在しません。
+一度変換してみてください
+それでもできないときはエラーがないか確認してください"}
+		}
+	}
+	return
+*projnew//プロジェクト新規時
+	gsel 2,-1//プロジェクト第１非表示
+	gsel 1//メイン画面選択
+	if varuse(projmaninst){//プロジェクト使用中か
+		dialog "プロジェクトを新しくする前に、保存しますか？",2,"確認"//確認ダイアログ表示
+		if stat == 6{//はいなら
+			projman_save projmaninst//プロジェクト保存
+			dialog "保存されました"//ダイアログ表示
+		}
+	}
+	dialog "プロジェクトのファイルに名前を付けてください"//ダイアログ表示
+	dialog "*",17//ファイル名取得
+	if stat == 0:dialog "キャンセルしました":gsel 1,1:return//キャンセル時返す
+	projfname = refstr//ファイル名保存
+	sdim flistdata//変数再初期化
+	objprm flistid,flistdata//空で更新
+	editingfile = -1//編集中ファイルなし
+	dimtype projmaninst,vartype("struct")//プロジェクト再初期化
+	newmod projmaninst,MOD_PROJMAN,projfname//新プロジェクト
+	dialog "出力するhspファイルに名前を付けてください"//ダイアログ表示
+	dialog "hsp",17//ファイル名取得
+	if stat == 0:dialog "キャンセルしました":gsel 1,1:return//キャンセル時返す
+	outfname = refstr//出力ファイル名保存
+	projman_setoutfname projmaninst,outfname//出力ファイル名設定
+	objenable newfileid,1//ファイルボタン有効化
+	objenable convprojid,1//変換ボタン有効化
+	objenable showoutid,1
+	gsel 2//プロジェクト画面選択
+	objenable projeditid,1//プロジェクト編集ボタン有効化
+	gsel 1//メイン画面選択
+	title "c862hsp -" + getpath(projfname,8) + "-"//タイトル設定
+	gsel 1,1
+	return
+*projopen//プロジェクト開く時
+	gsel 2,-1//プロジェクト第１非表示
+	gsel 1//メイン画面選択
+	if varuse(projmaninst){//プロジェクト使用中か
+		dialog "プロジェクトを新しくする前に、保存しますか？",2,"確認"//確認
+		if stat == 6{//はいなら
+			projman_save projmaninst//プロジェクト保存
+			dialog "保存されました"//ダイアログ表示
+		}
+	}
+	dialog "*",16//拓くプロジェクト選択
+	if stat == 0:dialog "キャンセルしました":gsel 1,1:return//キャンセル時返す
+	projfname = refstr//ファイル名保存
+	sdim flistdata//変数再初期化
+	objprm flistid,flistdata//空で更新
+	sdim ftxtdata//変数再初期化
+	objprm ftxtid,""//空で更新
+	objenable ftxtid,0//ファイルテキスト無効化
+	editingfile = -1//編集中ファイルなし
+	objenable savefileid,0//上書きボタン無効化
+	dimtype projmaninst,vartype("struct")//プロジェクト再初期化
+	newmod projmaninst,MOD_PROJMAN,projfname//新プロジェクト
+	projman_open projmaninst//プロジェクト開く
+	objenable newfileid,1//ファイルボタン有効化
+	objenable convprojid,1//変換ボタン有効化
+	objenable showoutid,1
+	projman_enumfilemaninsts projmaninst,1//ファイルリスト更新
+	gsel 2//プロジェクト画面選択
+	objenable projeditid,1//プロジェクト編集ボタン有効化
+	gsel 1//メイン画面選択
+	title "c862hsp -" + getpath(projfname,8) + "-"//タイトル設定
+	gsel 1,1
+	return
+*projedit//プロジェクト編集時
+	gsel 2,-1//プロジェクト第１画面非表示
+	gsel 4//プロジェクト変更画面表示
+	objprm inpprojfnameid,projman_getprojfname(projmaninst)//プロジェクトファイル名入力変更
+	objprm outphspfnameid,projman_getoutfname(projmaninst)
+	gsel 4,1//プロジェクト変更画面表示
+	return
+*filenew//ファイル新規時
+	gsel 3,-1//ファイル第１画面非表示
+	gsel 5,1//ファイル新規画面表示
+	return
+*fileedit//ファイル変更時
+	gsel 3,-1//ファイル用第１非表示
+	dialog "変更は現在選択されている（または作成された）ファイルに対して行われます。\n続行しますか？",3,"確認"//確認
+	if stat != 6{//はい以外なら
+		dialog "キャンセルします"//ダイアログ表示
+		gsel 1,1
+		return//返す
+	}
+	gsel 1//メイン画面選択
+	sendmsg hflist,LB_GETCURSEL,0,0//現在の選択ファイルリスト取得
+	flistcursel = stat//戻り値保存
+	if flistcursel == LB_ERR{//未選択なら
+		dialog "ファイルが選択されていませんでした"//ダイアログ表示
+		gsel 1,1
+		return//返す
+	}
+	sendmsg hflist,LB_GETITEMDATA,flistcursel,0//選択のファイルインデックス取得
+	curfileindex = stat//戻り値保存
+	curfileftype = projman_getfileftype(projmaninst,curfileindex)//ファイルタイプ取得
+	if curfileftype == (FILETYPE_PRE | FILETYPE_SHOW){
+		//ソースコードなら
+		gsel 6//ファイル変更画面選択
+		cursrcfilename = projman_getfilefname(projmaninst,curfileindex)//ソースファイル名取得
+		curobjfileindex = projman_getfileoptdepindex(projmaninst,curfileindex)//オブジェクトファイルインデックス取得
+		curobjfilename = projman_getfilefname(projmaninst,curobjfileindex)//オブジェクトファイル名取得
+		curfilecmdline = projman_getfileoptcmdline(projmaninst,curfileindex)//ファイルコマンドライン取得
+		title "ファイルの変更-" + getpath(cursrcfilename,8) + "- c862hsp"
+		objprm fileeditcmdlineid,curfilecmdline
+		objprm fileeditobjfnameid,curobjfilename
+		gsel 6,1//ファイル変更画面表示
+		gsel 1,-1
+	}else{
+		//オブジェやライブラリは
+		dialog "設定できる項目はありません"//ダイアログ表示
+	}
+	return
+*filedel//ファイル削除時
+	gsel 3,-1//ファイル用第１非表示
+	dialog "削除は現在選択されているファイルに対して行われます。\n続行しますか？",3,"確認"//確認
+	if stat != 6{//はい以外なら
+		dialog "キャンセルします"//ダイアログ表示
+		gsel 1,1
+		return//返す
+	}
+	gsel 1//メイン画面選択
+	sendmsg hflist,LB_GETCURSEL,0,0//現在の選択ファイルリスト取得
+	flistcursel = stat//戻り値保存
+	if flistcursel == LB_ERR{//未選択なら
+		dialog "ファイルが選択されていませんでした"//ダイアログ表示
+		gsel 1,1
+		return//返す
+	}
+	sendmsg hflist,LB_GETITEMDATA,flistcursel,0//ファイルインデックス取得
+	projman_delfile projmaninst,stat//ファイル削除
+	sendmsg hflist,LB_DELETESTRING,flistcursel,0//リストから削除
+	objprm ftxtid,""
+	objenable ftxtid,0
+	objenable savefileid,0
+	gsel 1,1
+	return
+*projeditok
+	projman_setprojfname projmaninst,vinpprojfname//プロジェクトファイル名更新
+	projman_setoutfname projmaninst,voutphspfname
+	gsel 4,-1//プロジェクト編集画面非表示
+	gsel 1,1//メイン画面表示
+	return
+*filenewobj
+	gsel 5,-1//ファイル新規画面非表示
+	gsel 1,1//メイン画面表示
+	dialog "obj",16,"オブジェクトファイル"
+	if stat != 1{//未選択なら
+		dialog "キャンセルされました"//ダイアログ表示
+		
+		return//返す
+	}
+	newfilename = refstr//選択ファイル名保存
+	projman_addobjfile projmaninst,newfilename//オブジェクトファイル追加
+	newfileindex = stat//ファイルインデックス保存
+	curdisplayname = getpath(newfilename,8)//ディレクトリ情報除去
+	sendmsg hflist,LB_ADDSTRING,0,curdisplayname//表示設定追加
+	curlistindex = stat//戻り値保存
+	sendmsg hflist,LB_SETITEMDATA,curlistindex,newfileindex//ファイルインデックス設定
+	return
+*filenewlib
+	gsel 5,-1//ファイル新規画面非表示
+	gsel 1,1//メイン画面表示
+	dialog "lib",16,"オブジェクトファイル"
+	if stat != 1{//未選択なら
+		dialog "キャンセルされました"//ダイアログ表示
+		return//返す
+	}
+	newfilename = refstr//選択ファイル名保存
+	projman_addlibfile projmaninst,newfilename//オブジェクトファイル追加
+	newfileindex = stat//ファイルインデックス保存
+	curdisplayname = getpath(newfilename,8)//ディレクトリ情報除去
+	sendmsg hflist,LB_ADDSTRING,0,curdisplayname//表示設定追加
+	curlistindex = stat//戻り値保存
+	sendmsg hflist,LB_SETITEMDATA,curlistindex,newfileindex//ファイルインデックス設定
+	return
+*filenewsrc
+	gsel 5,-1
+	dialog "*",17,"*"
+	if stat != 1{
+		dialog "キャンセルされました"
+		gsel 1,1
+		return
+	}
+	curfilefname = refstr
+	exist curfilefname
+	if strsize == -1{
+		ftxtdata = ""
+		bsave curfilefname,ftxtdata,0
+	}
+	projman_addsrcfile projmaninst,curfilefname,"",""
+	curfileindex = stat
+	curdisplayname = getpath(curfilefname,8)
+	sendmsg hflist,LB_ADDSTRING,0,curdisplayname//表示設定追加
+	curlistindex = stat//戻り値保存
+	sendmsg hflist,LB_SETITEMDATA,curlistindex,curfileindex//ファイルインデックス設定
+	sendmsg hflist,LB_SETCURSEL,curlistindex,0
+	gosub *fileedit
+	return
+*fileeditok
+	gsel 6
+	projman_setfileoptcmdline projmaninst,curfileindex,fileeditcmdline
+	projman_setfileobjfname projmaninst,curfileindex,fileeditobjfname
+	gsel 6,-1
+	gsel 1,1
+	return
+*exit//終了処理
+	if wparam == 2:gsel 2,-1:gsel 1,1:return//プロジェクト第１なら消して返す
+	if wparam == 3:gsel 3,-1:gsel 1,1:return//ファイル第１なら消して返す
+	if wparam == 4:gsel 4,-1:gsel 1,1:return//プロジェクト編集なら消して返す
+	if wparam == 5:gsel 5,-1:gsel 1,1:return//ファイル新規なら消して返す
+	if wparam == 6{//ファイル変更なら
+		gsel 6,-1//消す
+		dialog "変更は適用されませんでした"//ダイアログ表示
+		gsel 1,1
+		return//返す
+	}
+	if wparam == 1{
+		dialog "終了しますか？",3,"確認"
+		if stat != 6{
+			return
+		}
+	}
+	if editingfile != -1{//編集中なら
+		dialog "ファイルを保存しますか？",2,"確認"//確認
+		if stat == 6{//はいなら
+			gosub *savefile//保存
+		}//
+	}
+	if varuse(projmaninst) == 1{
+		projman_save projmaninst
+	}
+	end//終了
+	return
+	#deffunc updatestdoutdata str _buf//標準出力更新時
+		gsel 1//メイン画面選択
+		sdim buf2//変数最初期化
+		buf2 = _buf//コピー
+		buf2len = strlen(buf2)//バイト数取得
+		sendmsg hres,EM_LIMITTEXT,buf2len + 1,0//限界設定
+		objprm resid,buf2//結果更新
+		sendmsg hres,EM_SETSEL,buf2len,buf2len//最後尾選択
+		sendmsg hres,EM_SCROLLCARET,0,0//スクロール
+	return
+	#deffunc projman_enumfilemaninstsproc int _instindex,int _cookie
+		//ファイルマネージャ列挙
+		if _cookie == 1{//プロジェクト更新時
+			curfilefname = projman_getfilefname(projmaninst,_instindex)//ファイル名取得
+			curdisplayname = getpath(curfilefname,8)//ディレクトリ情報除去
+			curfileftype = projman_getfileftype(projmaninst,_instindex)//ファイルタイプ取得
+			if (curfileftype & FILETYPEMASK_SHOWHIDE) == FILETYPE_SHOW{//表示対象時
+				sendmsg hflist,LB_ADDSTRING,0,curdisplayname//表示設定追加
+				curlistindex = stat//戻り値保存
+				sendmsg hflist,LB_SETITEMDATA,curlistindex,_instindex//ファイルインデックス設定
+			}
+		}
+	return
