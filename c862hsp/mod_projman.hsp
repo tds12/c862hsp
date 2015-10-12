@@ -301,13 +301,17 @@
 		newmod optmaninst,MOD_OPTMAN
 		curomindex = stat
 		newmod filemaninst,MOD_FILEMAN,fname,ftype,optmaninst(curomindex)
+		curfmindex = stat
+		fileman_setoptmanindex filemaninst(curfmindex),curomindex
 	return stat
 	#modfunc projman_addlibfile str _fname
 		fname = _fname
 		ftype = FILETYPE_LIB | FILETYPE_SHOW
 		newmod optmaninst,MOD_OPTMAN
 		curomindex = stat
-		newmod filemaninst,MOD_FILEMAN,fname,ftype,optmaninst(curomindex)	
+		newmod filemaninst,MOD_FILEMAN,fname,ftype,optmaninst(curomindex)
+		curfmindex = stat
+		fileman_setoptmanindex filemaninst(curfmindex),curomindex	
 	return stat
 	#modfunc projman_delfile int _filemanindex
 		srcfdepindex = fileman_getoptdepindex(filemaninst(_filemanindex))
